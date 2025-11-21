@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transaction Details — BudgetMind AI</title>
+  <link rel="stylesheet" href="transaction-details.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand__logo">💠</div>
+        <div class="brand__name">BudgetMind AI</div>
+      </div>
+
+      <nav class="nav">
+        <a href="dashboard.html" class="nav__item">🏠 Dashboard</a>
+        <a href="#" class="nav__item">📄 Transactions</a>
+        <a href="settings.html" class="nav__item">⚙️ Settings</a>
+        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN AREA -->
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn" id="toggleSidebar">☰</button>
+        <h1 class="page-title">Transaction Details</h1>
+      </header>
+
+      <section class="content">
+        <div class="card detail-card">
+
+          <div class="detail-header">
+            <h2 id="merchantName">Uber Eats</h2>
+            <span class="amount negative" id="amount">-$24.19</span>
+          </div>
+
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="label">Date</span>
+              <span class="value" id="date">Nov 7, 2025</span>
+            </div>
+
+            <div class="detail-item">
+              <span class="label">Category</span>
+              <span class="value" id="category">Dining</span>
+            </div>
+
+            <div class="detail-item">
+              <span class="label">Payment Method</span>
+              <span class="value" id="method">Visa •••• 4492</span>
+            </div>
+
+            <div class="detail-item">
+              <span class="label">Transaction ID</span>
+              <span class="value" id="txid">TXN-84J2MD44</span>
+            </div>
+          </div>
+
+          <div class="notes-section">
+            <span class="label">Notes</span>
+            <p id="notes">
+              Food delivery order placed through the Uber Eats mobile app.
+            </p>
+          </div>
+
+          <button onclick="window.location.href='dashboard.html'" class="btn back-btn">
+            ← Back to Dashboard
+          </button>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <a href="#">About</a> ·
+        <a href="#">Contact Support</a> ·
+        <a href="#">Privacy</a>
+      </footer>
+    </main>
+
+  </div>
+
+  <script src="transaction-details.js"></script>
+</body>
+</html>

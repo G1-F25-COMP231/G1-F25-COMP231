@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BudgetMind AI — Verify 2FA</title>
+  <link rel="stylesheet" href="static/styles.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="card">
+      <header class="card__header">
+        <div class="brand">
+          <div class="brand__logo" aria-hidden="true">💠</div>
+          <h1 class="brand__name">BudgetMind AI</h1>
+        </div>
+        <p class="card__subtitle">Enter your 6-digit verification code</p>
+      </header>
+
+      <form id="verifyForm" novalidate>
+        <div class="field">
+          <label for="code">Authentication Code</label>
+          <input
+            id="code"
+            name="code"
+            type="text"
+            inputmode="numeric"
+            maxlength="6"
+            pattern="[0-9]{6}"
+            required
+          />
+        </div>
+
+        <button type="submit" class="btn">✅ Verify</button>
+      </form>
+
+      <p id="status" class="status"></p>
+    </section>
+  </main>
+
+  <script>
+  document.getElementById("verifyForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const code = document.getElementById("code").value.trim();
+
+    const res = await fetch("/api/verify-2fa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code })
+    });
+
+    const data = await res.json();
+    if (data.ok) {
+      window.location.href = data.redirect || "/dashboard.html";
+    } else {
+      document.getElementById("status").textContent = data.message || "Invalid code.";
+    }
+  });
+  </script>
+</body>
+</html>

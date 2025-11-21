@@ -1,0 +1,8 @@
+Flask
+python-dotenv
+pymongo
+bcrypt
+pyotp
+qrcode
+pillow
+gunicorn

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BudgetMind AI — Create Account</title>
+  <link rel="stylesheet" href="static/register.css" />
+</head>
+
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <h1 class="logo">💠 BudgetMind AI</h1>
+      <p class="subtitle">Create your account to start tracking your finances</p>
+
+      <form id="registerForm">
+        <div class="field">
+          <label>Full Name</label>
+          <input type="text" id="fullname" placeholder="Enter your full name" required />
+        </div>
+
+        <div class="field">
+          <label>Username</label>
+          <input type="text" id="username" placeholder="Choose a username" required />
+        </div>
+
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="email" placeholder="you@example.com" required />
+        </div>
+
+        <div class="field">
+          <label>Password</label>
+          <div class="password-wrap">
+            <input type="password" id="password" placeholder="Create a password" required />
+            <button type="button" id="togglePassword">Show</button>
+          </div>
+          <small>Minimum 8 characters, 1 number and 1 special character.</small>
+        </div>
+
+        <div class="field">
+          <label>Confirm Password</label>
+          <input type="password" id="confirmPassword" placeholder="Re-enter password" required />
+        </div>
+
+        <div class="field">
+          <label>Role (Optional)</label>
+          <select id="role">
+            <option value="">Select Role</option>
+            <option value="AverageUser">Average User</option>
+            <option value="FinancialAdvisor">Financial Advisor</option>
+            <option value="Regulator">Compliance Regulator</option>
+          </select>
+        </div>
+
+        <div class="checkbox">
+          <input type="checkbox" id="terms" required />
+          <label for="terms">I agree to the Terms & Privacy Policy</label>
+        </div>
+
+        <button type="submit" class="btn">Continue</button>
+      </form>
+
+      <p class="switch">Already have an account? <a href="/">Sign in</a></p>
+    </div>
+  </div>
+
+  <script src="static/register.js"></script>
+</body>
+</html>

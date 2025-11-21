@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BudgetMind AI — Dashboard</title>
+  <link rel="stylesheet" href="static/dashboard.css" />
+
+  <!-- Inject userId for MongoDB profile picture API -->
+  <script>
+    window.userId = "{{ session.get('user_id') }}";
+  </script>
+</head>
+<body>
+  <div class="app">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand__logo" aria-hidden="true">💠</div>
+        <div class="brand__name">BudgetMind AI</div>
+
+        <div class="profile-section">
+          <!-- Avatar auto-filled by JS -->
+          <div class="avatar" id="avatarBtn" title="Edit Profile"></div>
+
+          <!-- Greeting -->
+          <div class="profile-text" id="greetingText">Hello, User</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a class="nav__item active" href="/dashboard.html"><span>🏠</span> Dashboard</a>
+        <a class="nav__item" href="/ai-insights"><span>💡</span> AI Insights</a>
+        <a class="nav__item" href="/entry"><span>🧾</span> Add Entry</a>
+        <a class="nav__item" href="#"><span>📄</span> Transactions</a>
+        <a class="nav__item" href="/settings.html"><span>⚙️</span> Settings</a>
+        <a class="nav__item" href="/budget-limit"><span>💰</span> Budget Limit</a>
+        <a class="nav__item" href="/notes"><span>📝</span> Notes</a>
+      </nav>
+
+      <div class="nav__footer">
+        <a href="/logout" class="nav__item logout">↩️ Logout</a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <!-- Topbar -->
+      <header class="topbar">
+        <button class="icon-btn" id="toggleSidebar" aria-label="Toggle menu">☰</button>
+        <div class="search">
+          <input type="text" placeholder="Search transactions, merchants..." />
+        </div>
+      </header>
+
+      <!-- Content -->
+      <section class="content">
+        <!-- Row: Stat cards -->
+        <div class="grid grid-3">
+          <div class="card stat">
+            <div class="stat__label">Total Balance</div>
+            <div class="stat__value" id="totalBalance">$12,480.67</div>
+            <div class="spark" aria-hidden="true">
+              <svg viewBox="0 0 100 30" preserveAspectRatio="none">
+                <path d="M0,20 L15,12 L30,18 L45,8 L60,14 L75,10 L90,16 100,9" />
+              </svg>
+            </div>
+          </div>
+
+          <div class="card stat">
+            <div class="stat__label">Monthly Spending</div>
+            <div class="stat__value" id="monthlySpending">$2,134.52</div>
+            <div class="hint">vs. budget $2,500</div>
+            <div class="progress">
+              <div class="progress__bar" style="width: 85%"></div>
+            </div>
+          </div>
+
+          <div class="card stat">
+            <div class="stat__label">Savings Goal</div>
+            <div class="stat__value" id="savingsGoal">$7,200 / $10,000</div>
+            <div class="hint">Target: Dec 31</div>
+            <div class="progress">
+              <div class="progress__bar alt" style="width: 72%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Charts -->
+        <div class="grid grid-2">
+          <div class="card chart">
+            <div class="card__title">Income vs. Expenses</div>
+            <div class="bars" id="barChart" aria-label="Bar chart placeholder">
+              <!-- JS will replace with dynamic bars -->
+              <div class="bar">
+                <div class="bar__fill bar--income" style="height: 80%"></div>
+                <div class="bar__label">Income</div>
+              </div>
+              <div class="bar">
+                <div class="bar__fill bar--expense" style="height: 62%"></div>
+                <div class="bar__label">Expenses</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card chart">
+            <div class="card__title">Category Spend</div>
+            <div class="donut">
+              <svg viewBox="0 0 42 42" class="donut__svg" aria-hidden="true">
+                <circle class="donut__ring" cx="21" cy="21" r="15.915"></circle>
+                <circle class="donut__slice slice-1" cx="21" cy="21" r="15.915" stroke-dasharray="35 65"></circle>
+                <circle class="donut__slice slice-2" cx="21" cy="21" r="15.915" stroke-dasharray="25 75" stroke-dashoffset="35"></circle>
+                <circle class="donut__slice slice-3" cx="21" cy="21" r="15.915" stroke-dasharray="15 85" stroke-dashoffset="60"></circle>
+              </svg>
+              <div class="donut__legend">
+                <span class="lg groceries">Groceries</span>
+                <span class="lg bills">Bills</span>
+                <span class="lg travel">Travel</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: AI + Transactions -->
+        <div class="grid grid-2">
+          <div class="card ai">
+            <div class="card__title">AI Insights</div>
+            <ul class="ai__list" id="aiInsights">
+              <li>🍽️ You spent <b>18%</b> more on Dining this month than last.</li>
+              <li>💡 Consider lowering your <b>Subscriptions</b> by $12 to meet your target.</li>
+              <li>📈 You’re on track to hit <b>72%</b> of your Savings Goal by end of month.</li>
+            </ul>
+            <div class="ai__actions">
+              <button class="btn" id="refreshAI">Refresh tips</button>
+              <button class="btn ghost" id="openChatBtn">💬 Open AI Chat</button>
+            </div>
+          </div>
+
+          <div class="card table">
+            <div class="card__title">Recent Transactions</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th><th>Merchant</th><th>Category</th><th>Amount</th>
+                </tr>
+              </thead>
+              <tbody id="txTable"></tbody>
+            </table>
+            <div class="table__footer">
+              <a class="link" href="#">View all</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- AI Chat Modal -->
+  <div id="aiChatModal" class="chat-modal hidden">
+    <div class="chat-header">
+      <h3>💬 BudgetMind AI Chat</h3>
+      <button id="closeChat" class="close-btn">✖</button>
+    </div>
+
+    <div id="chatMessages" class="chat-messages"></div>
+
+    <form id="chatForm" class="chat-form">
+      <input type="text" id="chatInput" placeholder="Ask BudgetMind AI something..." autocomplete="off" required />
+      <button type="submit" class="btn">Send</button>
+    </form>
+  </div>
+
+  <!-- DASHBOARD JS -->
+  <script src="static/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,255 @@
+<<<<<<< HEAD
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background: radial-gradient(circle at 20% 20%, #0d1b2a, #000814);
+  color: #e0e6ed;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.card {
+  background: rgba(17, 25, 40, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  box-shadow: 0 0 25px rgba(0, 255, 255, 0.1);
+  padding: 40px 48px;
+  width: 380px;
+  backdrop-filter: blur(12px);
+}
+
+.logo {
+  color: #00ffff;
+  font-size: 1.6rem;
+  margin: 0 0 8px;
+  text-align: center;
+}
+.subtitle {
+  text-align: center;
+  color: #a9bcd0;
+  margin-bottom: 30px;
+  font-size: 0.9rem;
+}
+
+.field {
+  margin-bottom: 18px;
+}
+label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+  color: #b8c6db;
+}
+input, select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #1b263b;
+  background-color: #0b132b;
+  color: #ffffff;
+  font-size: 0.95rem;
+  transition: 0.3s;
+}
+input:focus, select:focus {
+  border-color: #00ffff;
+  outline: none;
+  box-shadow: 0 0 6px #00ffff80;
+}
+
+.password-wrap {
+  position: relative;
+}
+.password-wrap button {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  background: none;
+  border: none;
+  color: #00ffff;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+small {
+  font-size: 0.7rem;
+  color: #8091a3;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  margin: 12px 0 22px;
+}
+.checkbox label {
+  margin-left: 8px;
+  font-size: 0.85rem;
+  color: #cfd8e3;
+}
+
+.btn {
+  width: 100%;
+  background: linear-gradient(90deg, #00ffff, #00b3b3);
+  border: none;
+  color: #0b132b;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 12px 0;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.btn:hover {
+  box-shadow: 0 0 15px #00ffff70;
+  transform: translateY(-1px);
+}
+
+.switch {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 0.85rem;
+}
+.switch a {
+  color: #00ffff;
+  text-decoration: none;
+}
+.switch a:hover {
+  text-decoration: underline;
+}
+=======
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background: radial-gradient(circle at 20% 20%, #0d1b2a, #000814);
+  color: #e0e6ed;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.card {
+  background: rgba(17, 25, 40, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  box-shadow: 0 0 25px rgba(0, 255, 255, 0.1);
+  padding: 40px 48px;
+  width: 380px;
+  backdrop-filter: blur(12px);
+}
+
+.logo {
+  color: #00ffff;
+  font-size: 1.6rem;
+  margin: 0 0 8px;
+  text-align: center;
+}
+.subtitle {
+  text-align: center;
+  color: #a9bcd0;
+  margin-bottom: 30px;
+  font-size: 0.9rem;
+}
+
+.field {
+  margin-bottom: 18px;
+}
+label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+  color: #b8c6db;
+}
+input, select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #1b263b;
+  background-color: #0b132b;
+  color: #ffffff;
+  font-size: 0.95rem;
+  transition: 0.3s;
+}
+input:focus, select:focus {
+  border-color: #00ffff;
+  outline: none;
+  box-shadow: 0 0 6px #00ffff80;
+}
+
+.password-wrap {
+  position: relative;
+}
+.password-wrap button {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  background: none;
+  border: none;
+  color: #00ffff;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+small {
+  font-size: 0.7rem;
+  color: #8091a3;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  margin: 12px 0 22px;
+}
+.checkbox label {
+  margin-left: 8px;
+  font-size: 0.85rem;
+  color: #cfd8e3;
+}
+
+.btn {
+  width: 100%;
+  background: linear-gradient(90deg, #00ffff, #00b3b3);
+  border: none;
+  color: #0b132b;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 12px 0;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.btn:hover {
+  box-shadow: 0 0 15px #00ffff70;
+  transform: translateY(-1px);
+}
+
+.switch {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 0.85rem;
+}
+.switch a {
+  color: #00ffff;
+  text-decoration: none;
+}
+.switch a:hover {
+  text-decoration: underline;
+}
+>>>>>>> 0eab941ac9f72e0fd22e95f1258f3a5a8995c687

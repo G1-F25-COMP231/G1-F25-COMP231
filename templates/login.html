@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BudgetMind AI — Secure Login</title>
+  <link rel="stylesheet" href="static/styles.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="card">
+      <header class="card__header">
+        <div class="brand">
+          <div class="brand__logo" aria-hidden="true">₿</div>
+          <h1 class="brand__name">BudgetMind AI</h1>
+        </div>
+        <p class="card__subtitle">Sign in to protect and manage your finances</p>
+      </header>
+
+      <!-- Login Form -->
+      <form id="loginForm" novalidate>
+        <!-- Username / Email -->
+        <div class="field">
+          <label for="identifier">Email or Username</label>
+          <input
+            id="identifier"
+            name="identifier"
+            type="text"
+            inputmode="email"
+            autocomplete="username"
+            placeholder="e.g., alex@bank.com or alex_user"
+            aria-describedby="idHelp idError"
+            required
+          />
+          <small id="idHelp" class="muted">
+            Use your registered email or username.
+          </small>
+          <div id="idError" class="error" role="alert" aria-live="polite"></div>
+        </div>
+
+        <!-- Password -->
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="password-wrap">
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Your password"
+              aria-describedby="pwHelp pwError"
+              required
+            />
+            <button type="button" class="ghost-btn" id="togglePw" aria-label="Show password">Show</button>
+          </div>
+          <small id="pwHelp" class="muted">
+            Minimum 8 characters, with at least 1 number and 1 special character.
+          </small>
+          <div id="pwError" class="error" role="alert" aria-live="polite"></div>
+        </div>
+
+        <!-- Actions -->
+        <div class="actions">
+          <button id="submitBtn" class="primary" type="submit" disabled>Continue</button>
+          <p class="card__footer">
+            <a href="/forgot_password.html" id="forgotLink">Forgot password?</a>
+          </p>
+        </div>
+
+        <!-- Secondary actions -->
+        <div class="secondary">
+          <span class="muted">New here?</span>
+          <a class="link" href="/register.html">Create an account</a>
+        </div>
+
+        <!-- Accessibility status region (for form-level messages) -->
+        <div id="formStatus" class="visually-hidden" aria-live="polite"></div>
+
+        <!-- Non-functional note (session timeout) -->
+        <input type="hidden" name="__sessionTimeoutMins" value="15" />
+      </form>
+    </section>
+
+    <!-- 2FA Modal -->
+    <dialog id="twofaDialog" class="modal">
+      <form method="dialog" class="modal__content" id="twofaForm">
+        <h2 class="modal__title">Two-Factor Verification</h2>
+        <p class="modal__text">
+          Enter the 6-digit code from your authenticator app or email.
+        </p>
+
+        <div class="field">
+          <label for="twofa">Verification code</label>
+         <input
+          id="twofa"
+          name="twofa"
+          type="text"
+          inputmode="numeric"
+          pattern="[0-9]{6}"
+          maxlength="6"
+          placeholder="••••••"
+          aria-describedby="faError"
+          required
+        />
+
+          <div id="faError" class="error" role="alert" aria-live="polite"></div>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="primary">Verify</button>
+          <button type="button" class="ghost-btn" id="cancel2fa">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+  </main>
+
+  <footer class="page__footer">
+    <a class="link" href="#">About</a>
+    <span aria-hidden="true">·</span>
+    <a class="link" href="#">Contact Support</a>
+    <span aria-hidden="true">·</span>
+    <a class="link" href="#">Privacy</a>
+  </footer>
+
+  <!-- ✅ Updated JS integration -->
+  <script src="static/login.js"></script>
+</body>
+</html>
