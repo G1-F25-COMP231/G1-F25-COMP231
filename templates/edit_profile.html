@@ -37,7 +37,6 @@
       <section class="content">
         <!-- Profile Edit Form -->
         <form id="profileForm" class="card form-card" enctype="multipart/form-data">
-
           <div class="form-group">
             <label for="fullName">Full Name</label>
             <input type="text" id="fullName" name="fullName" placeholder="John Doe" />
@@ -59,8 +58,11 @@
           </div>
 
           <!-- Profile Picture Preview -->
-          <img id="profilePreview" src="" 
-               style="width:120px;height:120px;border-radius:50%;object-fit:cover;display:block;margin-bottom:15px;">
+          <img
+            id="profilePreview"
+            src=""
+            style="width:120px;height:120px;border-radius:50%;object-fit:cover;display:block;margin-bottom:15px;"
+          />
 
           <div class="form-group">
             <label for="profilePic">Profile Picture</label>
@@ -86,8 +88,12 @@
           <!-- QR Code Display -->
           <div id="qrContainer" class="hidden">
             <p>📱 Scan this QR code using Google Authenticator:</p>
-            <img id="qrImage" src="" alt="QR Code" 
-                 style="max-width:220px;margin:1rem auto;display:block;" />
+            <img
+              id="qrImage"
+              src=""
+              alt="QR Code"
+              style="max-width:220px;margin:1rem auto;display:block;"
+            />
             <p><b>Secret Key:</b> <span id="qrSecret"></span></p>
             <p class="muted small">
               Once scanned, enter the 6-digit code in your authenticator app to verify login.
@@ -98,12 +104,27 @@
           <div id="twofaMessage" class="alert success hidden"></div>
         </section>
 
+        <hr class="divider" />
+
+        <!-- Bank Connection (Plaid Sandbox) -->
+        <section class="card" style="margin-top: 20px;">
+          <h2>Bank Connection</h2>
+          <p id="bankStatusText">Checking bank connection…</p>
+          <p>Current Balance: <span id="bankBalanceText">--</span></p>
+          <button id="bankConnectBtn" type="button" class="btn-save">
+            Connect Sandbox Bank
+          </button>
+        </section>
+      </section>
+
       <footer class="footer">
         <a href="#">About</a> · <a href="#">Contact Support</a> · <a href="#">Privacy</a>
       </footer>
     </main>
   </div>
 
+  <!-- JS -->
   <script src="static/edit_profile.js"></script>
+  <script src="static/bank_connect.js"></script>
 </body>
 </html>

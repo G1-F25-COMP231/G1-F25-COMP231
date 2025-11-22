@@ -1,15 +1,15 @@
 // =======================
 // Sidebar toggle for mobile
 // =======================
-const toggleBtn = document.getElementById('toggleSidebar');
-const sidebar = document.getElementById('sidebar');
+const toggleBtn = document.getElementById("toggleSidebar");
+const sidebar = document.getElementById("sidebar");
 
 if (toggleBtn && sidebar) {
-  toggleBtn.addEventListener('click', () => {
+  toggleBtn.addEventListener("click", () => {
     if (window.innerWidth <= 880) {
-      sidebar.classList.toggle('show');
+      sidebar.classList.toggle("show");
     } else {
-      sidebar.classList.toggle('hidden');
+      sidebar.classList.toggle("hidden");
     }
   });
 }
@@ -29,7 +29,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (data.ok && data.user) {
       const user = data.user;
       const firstName = user.fullName ? user.fullName.split(" ")[0] : "User";
-      greeting.textContent = `Hello, ${firstName}`;
+      if (greeting) {
+        greeting.textContent = `Hello, ${firstName}`;
+      }
     }
   } catch (err) {
     console.error("[Dashboard] Failed to load user profile:", err);
@@ -37,6 +39,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Load avatar from MongoDB
   try {
+    if (!window.userId || !avatar) return;
     const res = await fetch(`/api/profile-picture/${window.userId}`);
     const data = await res.json();
 
@@ -46,127 +49,187 @@ document.addEventListener("DOMContentLoaded", async () => {
       avatar.style.backgroundPosition = "center";
       avatar.textContent = "";
     } else {
-      // fallback initial
-      avatar.textContent = greeting.textContent.replace("Hello, ", "").charAt(0) || "U";
+      const nameInitial =
+        (greeting &&
+          greeting.textContent &&
+          greeting.textContent.replace("Hello, ", "").charAt(0)) ||
+        "U";
+      avatar.textContent = nameInitial;
     }
   } catch (err) {
     console.warn("[Dashboard] No profile picture found.");
-    avatar.textContent = "U";
+    if (avatar) {
+      const nameInitial =
+        (greeting &&
+          greeting.textContent &&
+          greeting.textContent.replace("Hello, ", "").charAt(0)) ||
+        "U";
+      avatar.textContent = nameInitial;
+    }
   }
 
-  avatar.addEventListener("click", () => {
-    window.location.href = "/edit-profile.html";
-  });
+  if (avatar) {
+    avatar.addEventListener("click", () => {
+      window.location.href = "/edit-profile.html";
+    });
+  }
 });
 
 // =======================
-// Sample recent transactions
+// Transactions rendering (Plaid only)
 // =======================
-const sampleTx = [
-  { date: '2025-11-07', merchant: 'Uber Eats', category: 'Dining', amount: -24.19 },
-  { date: '2025-11-06', merchant: 'Starbucks', category: 'Dining', amount: -6.15 },
-  { date: '2025-11-06', merchant: 'Hydro Toronto', category: 'Bills', amount: -86.40 },
-  { date: '2025-11-05', merchant: 'Metro', category: 'Groceries', amount: -72.33 },
-  { date: '2025-11-04', merchant: 'Payroll', category: 'Income', amount: 2450.00 },
-  { date: '2025-11-03', merchant: 'Airbnb', category: 'Travel', amount: -128.00 },
-];
+const txTable = document.getElementById("txTable");
 
-const txTable = document.getElementById('txTable');
 function formatAmt(n) {
-  const f = Math.abs(n).toFixed(2);
-  return n < 0 ? `-$${f}` : `$${f}`;
+  const num = Number(n || 0);
+  const f = Math.abs(num).toFixed(2);
+  return num < 0 ? `-$${f}` : `$${f}`;
 }
-function renderTx() {
-  if (!txTable) return;
-  txTable.innerHTML = sampleTx
-    .map(
-      (tx) => `
-        <tr>
-          <td>${tx.date}</td>
-          <td>${tx.merchant}</td>
-          <td>${tx.category}</td>
-          <td style="color:${tx.amount < 0 ? '#ff9f9f' : '#5df2a9'}">${formatAmt(tx.amount)}</td>
-        </tr>`
-    )
-    .join('');
-}
-renderTx();
 
-// === Fetch Income vs Expense Summary ===
-async function loadSummary() {
+function renderTransactionsFromList(list) {
+  if (!txTable) return;
+
+  if (!list || !list.length) {
+    txTable.innerHTML = `
+      <tr>
+        <td colspan="4" style="text-align:center;color:#8091a3;">
+          Connect a bank account to see your recent transactions.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  txTable.innerHTML = list
+    .map((tx) => {
+      const date = tx.date || "";
+      const merchant = tx.merchant || tx.name || "Unknown";
+      const category = tx.category || "";
+      const txId = tx.transaction_id || "";
+      const signed =
+        typeof tx.amount === "number" ? tx.amount : Number(tx.amount || 0);
+
+      return `
+        <tr data-txid="${txId}">
+          <td>${date}</td>
+          <td>${merchant}</td>
+          <td>${category}</td>
+          <td style="color:${signed < 0 ? "#ff9f9f" : "#5df2a9"}">
+            ${formatAmt(signed)}
+          </td>
+        </tr>`;
+    })
+    .join("");
+}
+
+// Make rows clickable → go to transaction-details
+if (txTable) {
+  txTable.addEventListener("click", (e) => {
+    const row = e.target.closest("tr[data-txid]");
+    if (!row) return;
+    const txId = row.getAttribute("data-txid");
+    if (txId) {
+      window.location.href = `/transaction-details.html?txid=${encodeURIComponent(
+        txId
+      )}`;
+    }
+  });
+}
+
+// =======================
+// Income vs Expense Chart (two bars only)
+// Uses /api/summary → income, expense
+// =======================
+async function updateBarChart() {
   try {
     const res = await fetch("/api/summary");
+    if (!res.ok) throw new Error("API request failed");
     const data = await res.json();
 
-    const incomeBar = document.querySelector(".bar--income");
-    const expenseBar = document.querySelector(".bar--expense");
-    const incomeLabel = incomeBar.nextElementSibling;
-    const expenseLabel = expenseBar.nextElementSibling;
+    const barChart = document.getElementById("barChart");
+    if (!barChart) return;
+    barChart.innerHTML = "";
 
-    const income = data.income || 0;
-    const expense = data.expense || 0;
-    const total = income + expense;
+    const income = Number(data.income || 0);
+    const expense = Number(data.expense || 0);
 
-    // Calculate relative height %
-    const incomePct = total > 0 ? (income / total) * 100 : 50;
-    const expensePct = total > 0 ? (expense / total) * 100 : 50;
+    const maxVal = Math.max(income, expense, 1); // avoid divide by 0
+    const minHeight = 10;
+    const chartHeight = 220;
 
-    incomeBar.style.height = `${Math.max(10, incomePct)}%`;
-    expenseBar.style.height = `${Math.max(10, expensePct)}%`;
+    // Income bar
+    const incomeBarWrapper = document.createElement("div");
+    incomeBarWrapper.className = "bar";
+    const incomeHeight = Math.max((income / maxVal) * chartHeight, minHeight);
+    incomeBarWrapper.innerHTML = `
+      <div class="bar__fill bar--income" style="height:${incomeHeight}px"></div>
+      <div class="bar__label">
+        Income<br><b>$${income.toFixed(2)}</b>
+      </div>
+    `;
+    barChart.appendChild(incomeBarWrapper);
 
-    // Update labels
-    incomeLabel.textContent = `Income ($${income.toFixed(2)})`;
-    expenseLabel.textContent = `Expenses ($${expense.toFixed(2)})`;
-
+    // Expense bar
+    const expenseBarWrapper = document.createElement("div");
+    expenseBarWrapper.className = "bar";
+    const expenseHeight = Math.max((expense / maxVal) * chartHeight, minHeight);
+    expenseBarWrapper.innerHTML = `
+      <div class="bar__fill bar--expense" style="height:${expenseHeight}px"></div>
+      <div class="bar__label">
+        Expenses<br><b>$${expense.toFixed(2)}</b>
+      </div>
+    `;
+    barChart.appendChild(expenseBarWrapper);
   } catch (err) {
-    console.error("[Dashboard] Failed to load summary:", err);
+    console.error("[Dashboard] Chart render failed:", err);
   }
 }
 
-document.addEventListener("DOMContentLoaded", loadSummary);
+document.addEventListener("DOMContentLoaded", updateBarChart);
 
 // =======================
 // AI Insights Refresh Tips
 // =======================
-const refreshAI = document.getElementById('refreshAI');
-const aiInsights = document.getElementById('aiInsights');
+const refreshAI = document.getElementById("refreshAI");
+const aiInsights = document.getElementById("aiInsights");
 const tips = [
-  '🚌 Try a transit pass this week — potential savings <b>$18</b>.',
-  '🧾 Your subscriptions increased by <b>$6</b> MoM.',
-  '🥦 Groceries are below average this week. Nice!',
-  '🛍️ Consider a 48-hour rule for purchases over <b>$50</b>.',
+  "🚌 Try a transit pass this week — potential savings <b>$18</b>.",
+  "🧾 Your subscriptions increased by <b>$6</b> MoM.",
+  "🥦 Groceries are below average this week. Nice!",
+  "🛍️ Consider a 48-hour rule for purchases over <b>$50</b>.",
 ];
 
 if (refreshAI && aiInsights) {
-  refreshAI.addEventListener('click', () => {
-    const pick = Array.from({ length: 3 }, () => tips[Math.floor(Math.random() * tips.length)]);
-    aiInsights.innerHTML = pick.map((t) => `<li>${t}</li>`).join('');
+  refreshAI.addEventListener("click", () => {
+    const pick = Array.from(
+      { length: 3 },
+      () => tips[Math.floor(Math.random() * tips.length)]
+    );
+    aiInsights.innerHTML = pick.map((t) => `<li>${t}</li>`).join("");
   });
 }
 
 // =======================
 // Logout Button
 // =======================
-const logoutBtn = document.querySelector('.logout');
+const logoutBtn = document.querySelector(".logout");
 if (logoutBtn) {
-  logoutBtn.addEventListener('click', async (e) => {
+  logoutBtn.addEventListener("click", async (e) => {
     e.preventDefault();
-    console.log('[dashboard.js] Logout clicked');
     try {
-      const res = await fetch('/logout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
       });
       if (res.ok) {
-        console.log('[dashboard.js] Logout success');
-        window.location.href = '/';
+        window.location.href = "/";
       } else {
-        console.error('[dashboard.js] Logout failed:', res.status);
-        alert('Logout failed. Please try again.');
+        console.error("[dashboard.js] Logout failed:", res.status);
+        alert("Logout failed. Please try again.");
       }
     } catch (err) {
-      console.error('[dashboard.js] Network error:', err);
-      alert('Network error while logging out.');
+      console.error("[dashboard.js] Network error:", err);
+      alert("Network error while logging out.");
     }
   });
 }
@@ -174,39 +237,38 @@ if (logoutBtn) {
 // =======================
 // AI Chat Modal Logic
 // =======================
-const chatModal = document.getElementById('aiChatModal');
-const openChatBtn = document.getElementById('openChatBtn');
-const closeChat = document.getElementById('closeChat');
-const chatForm = document.getElementById('chatForm');
-const chatInput = document.getElementById('chatInput');
-const chatMessages = document.getElementById('chatMessages');
+const chatModal = document.getElementById("aiChatModal");
+const openChatBtn = document.getElementById("openChatBtn");
+const closeChat = document.getElementById("closeChat");
+const chatForm = document.getElementById("chatForm");
+const chatInput = document.getElementById("chatInput");
+const chatMessages = document.getElementById("chatMessages");
 
 if (openChatBtn && chatModal) {
-  openChatBtn.addEventListener('click', () => {
-    chatModal.classList.remove('hidden');
+  openChatBtn.addEventListener("click", () => {
+    chatModal.classList.remove("hidden");
   });
 }
 
 if (closeChat && chatModal) {
-  closeChat.addEventListener('click', () => {
-    chatModal.classList.add('hidden');
+  closeChat.addEventListener("click", () => {
+    chatModal.classList.add("hidden");
   });
 }
 
 if (chatForm && chatMessages && chatInput) {
-  chatForm.addEventListener('submit', async (e) => {
+  chatForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const userMsg = chatInput.value.trim();
     if (!userMsg) return;
 
-    // Display user message
     chatMessages.innerHTML += `<p class="user">🧍 ${userMsg}</p>`;
-    chatInput.value = '';
+    chatInput.value = "";
 
     try {
-      const res = await fetch('/api/ai-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/ai-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMsg }),
       });
 
@@ -214,102 +276,151 @@ if (chatForm && chatMessages && chatInput) {
       chatMessages.innerHTML += `<p class="ai">🤖 ${data.reply}</p>`;
       chatMessages.scrollTop = chatMessages.scrollHeight;
     } catch (err) {
-      console.error('[AI Chat] Error:', err);
+      console.error("[AI Chat] Error:", err);
       chatMessages.innerHTML += `<p class="ai">⚠️ Unable to connect to AI right now.</p>`;
     }
   });
 }
 
-// === Dynamic Income vs. Expense Chart Enhancement ===
-async function updateBarChart() {
+// =======================
+// BANK: Use Plaid sandbox data for balance + monthly spending + savings goal
+// Any +amount = income, any -amount = expense
+// =======================
+
+const MONTHLY_BUDGET_TARGET = 2500; // $2,500 monthly spending budget
+const SAVINGS_GOAL_TARGET = 10000;  // $10,000 savings goal
+
+async function updateBankUI() {
+  const balanceEl = document.getElementById("totalBalance");
+
+  const monthlySpendingEl = document.getElementById("monthlySpending");
+  const monthlySpendingHintEl = document.getElementById("monthlySpendingHint");
+  const monthlySpendingProgressEl = document.getElementById(
+    "monthlySpendingProgress"
+  );
+
+  const savingsGoalTextEl = document.getElementById("savingsGoalText");
+  const savingsGoalHintEl = document.getElementById("savingsGoalHint");
+  const savingsGoalProgressEl = document.getElementById("savingsGoalProgress");
+
+  function resetBankUI() {
+    if (balanceEl) balanceEl.textContent = "$0.00";
+    renderTransactionsFromList([]);
+
+    if (monthlySpendingEl) monthlySpendingEl.textContent = "$0.00";
+    if (monthlySpendingHintEl) {
+      monthlySpendingHintEl.textContent = `vs. budget $${MONTHLY_BUDGET_TARGET.toFixed(
+        2
+      )}`;
+    }
+    if (monthlySpendingProgressEl)
+      monthlySpendingProgressEl.style.width = "0%";
+
+    if (savingsGoalTextEl) {
+      savingsGoalTextEl.textContent = `$0.00 / $${SAVINGS_GOAL_TARGET.toFixed(
+        2
+      )}`;
+    }
+    if (savingsGoalHintEl) {
+      savingsGoalHintEl.textContent = "Connect a bank to track savings.";
+    }
+    if (savingsGoalProgressEl) savingsGoalProgressEl.style.width = "0%";
+  }
+
   try {
-    const res = await fetch("/api/summary");
-    if (!res.ok) throw new Error("API request failed");
-
+    const res = await fetch("/api/bank/status");
     const data = await res.json();
-    const { income = 0, expense = 0, categories = [] } = data;
 
-    const barChart = document.getElementById("barChart");
-    barChart.innerHTML = ""; // Clear placeholder bars
-
-    // Find the max value for height scaling
-    const maxVal = Math.max(income, ...categories.map(c => c.total));
-
-    // Income bar
-    const incomeBar = document.createElement("div");
-    incomeBar.classList.add("bar");
-    incomeBar.innerHTML = `
-      <div class="bar__fill bar--income" style="height:${(income / maxVal) * 100}%"></div>
-      <div class="bar__label">Income<br><b>$${income.toFixed(2)}</b></div>
-    `;
-    barChart.appendChild(incomeBar);
-
-    // Expense bars by category
-    if (categories.length === 0) {
-      const noData = document.createElement("div");
-      noData.classList.add("bar__label");
-      noData.textContent = "No expenses yet.";
-      barChart.appendChild(noData);
+    if (!data.ok || !data.connected) {
+      resetBankUI();
       return;
     }
 
-    categories.forEach(cat => {
-      const bar = document.createElement("div");
-      bar.classList.add("bar");
-      bar.innerHTML = `
-        <div class="bar__fill bar--expense" style="height:${(cat.total / maxVal) * 100}%"></div>
-        <div class="bar__label">${cat.name}<br><b>$${cat.total.toFixed(2)}</b></div>
-      `;
-      barChart.appendChild(bar);
+    // ---- Bank is connected ----
+    const currentBal =
+      typeof data.current_balance === "number" ? data.current_balance : 0;
+
+    // 1) Total Balance card
+    if (balanceEl) {
+      balanceEl.textContent = `$${currentBal.toFixed(2)}`;
+    }
+
+    // 2) Transactions
+    const recent = Array.isArray(data.recent_transactions)
+      ? data.recent_transactions
+      : [];
+
+    // Build list with signed amounts for UI (+income, -expense)
+    const uiTx = recent.map((tx) => {
+      const raw = Number(tx.amount || 0);
+      const signed =
+        typeof tx.signed_amount === "number"
+          ? tx.signed_amount
+          : raw; // fallback if missing
+
+      return {
+        date: tx.date,
+        merchant: tx.name,
+        category: tx.category,
+        amount: signed,
+        transaction_id: tx.transaction_id,
+      };
     });
+
+    renderTransactionsFromList(uiTx);
+
+    // 3) Split by sign: +amount => income, -amount => expense
+    let totalIncome = 0;
+    let totalExpense = 0; // stored positive for UI
+
+    uiTx.forEach((tx) => {
+      const amt = Number(tx.amount || 0);
+      if (amt > 0) totalIncome += amt;
+      else if (amt < 0) totalExpense += Math.abs(amt);
+    });
+
+    // Monthly Spending = expenses
+    const spendingAbs = totalExpense;
+
+    if (monthlySpendingEl) {
+      monthlySpendingEl.textContent = `$${spendingAbs.toFixed(2)}`;
+    }
+    if (monthlySpendingHintEl) {
+      monthlySpendingHintEl.textContent = `vs. budget $${MONTHLY_BUDGET_TARGET.toFixed(
+        2
+      )}`;
+    }
+    if (monthlySpendingProgressEl) {
+      const pct =
+        MONTHLY_BUDGET_TARGET > 0
+          ? Math.min(100, (spendingAbs / MONTHLY_BUDGET_TARGET) * 100)
+          : 0;
+      monthlySpendingProgressEl.style.width = `${pct}%`;
+    }
+
+    // Savings goal vs current balance
+    if (savingsGoalTextEl) {
+      savingsGoalTextEl.textContent = `$${currentBal.toFixed(
+        2
+      )} / $${SAVINGS_GOAL_TARGET.toFixed(2)}`;
+    }
+    if (savingsGoalHintEl) {
+      savingsGoalHintEl.textContent = "Based on your linked account balance.";
+    }
+    if (savingsGoalProgressEl) {
+      const goalPct =
+        SAVINGS_GOAL_TARGET > 0
+          ? Math.min(100, (currentBal / SAVINGS_GOAL_TARGET) * 100)
+          : 0;
+      savingsGoalProgressEl.style.width = `${goalPct}%`;
+    }
   } catch (err) {
-    console.error("[Dashboard] Failed to update bar chart:", err);
+    console.error("[Dashboard] Failed to load bank status:", err);
+    resetBankUI();
   }
 }
 
-// Auto-run after page load
-document.addEventListener("DOMContentLoaded", updateBarChart);
-
-// === Improved Visible Bar Chart ===
-async function updateBarChart() {
-  try {
-    const res = await fetch("/api/summary");
-    if (!res.ok) throw new Error("API request failed");
-    const data = await res.json();
-
-    const barChart = document.getElementById("barChart");
-    barChart.innerHTML = "";
-
-    const { income = 0, categories = [] } = data;
-
-    const maxVal = Math.max(income, ...categories.map(c => c.total)) || 1;
-
-    const minHeight = 10; 
-    const chartHeight = 220;
-
-    const incomeBar = document.createElement("div");
-    incomeBar.className = "bar";
-    const incomeHeight = Math.max((income / maxVal) * chartHeight, minHeight);
-    incomeBar.innerHTML = `
-      <div class="bar__fill bar--income" style="height:${incomeHeight}px"></div>
-      <div class="bar__label">Income<br><b>$${income.toFixed(2)}</b></div>
-    `;
-    barChart.appendChild(incomeBar);
-
-    categories.forEach(cat => {
-      const bar = document.createElement("div");
-      bar.className = "bar";
-      const expHeight = Math.max((cat.total / maxVal) * chartHeight, minHeight);
-      bar.innerHTML = `
-        <div class="bar__fill bar--expense" style="height:${expHeight}px"></div>
-        <div class="bar__label">${cat.name}<br><b>$${cat.total.toFixed(2)}</b></div>
-      `;
-      barChart.appendChild(bar);
-    });
-
-  } catch (err) {
-    console.error("[Dashboard] Chart render failed:", err);
-  }
-}
-
-document.addEventListener("DOMContentLoaded", updateBarChart);
+document.addEventListener("DOMContentLoaded", () => {
+  updateBankUI();
+  setInterval(updateBankUI, 600000); // every 10 minutes
+});

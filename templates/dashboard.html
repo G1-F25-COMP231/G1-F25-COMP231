@@ -33,10 +33,9 @@
         <a class="nav__item active" href="/dashboard.html"><span>🏠</span> Dashboard</a>
         <a class="nav__item" href="/ai-insights"><span>💡</span> AI Insights</a>
         <a class="nav__item" href="/entry"><span>🧾</span> Add Entry</a>
-        <a class="nav__item" href="#"><span>📄</span> Transactions</a>
+        <a class="nav__item" href="/transaction-details.html"><span>📄</span> Transactions</a>
         <a class="nav__item" href="/settings.html"><span>⚙️</span> Settings</a>
         <a class="nav__item" href="/budget-limit"><span>💰</span> Budget Limit</a>
-        <a class="nav__item" href="/notes"><span>📝</span> Notes</a>
       </nav>
 
       <div class="nav__footer">
@@ -58,9 +57,10 @@
       <section class="content">
         <!-- Row: Stat cards -->
         <div class="grid grid-3">
+          <!-- Total Balance -->
           <div class="card stat">
             <div class="stat__label">Total Balance</div>
-            <div class="stat__value" id="totalBalance">$12,480.67</div>
+            <div class="stat__value" id="totalBalance">$0.00</div>
             <div class="spark" aria-hidden="true">
               <svg viewBox="0 0 100 30" preserveAspectRatio="none">
                 <path d="M0,20 L15,12 L30,18 L45,8 L60,14 L75,10 L90,16 100,9" />
@@ -68,21 +68,23 @@
             </div>
           </div>
 
+          <!-- Monthly Spending (from Plaid expenses only) -->
           <div class="card stat">
             <div class="stat__label">Monthly Spending</div>
-            <div class="stat__value" id="monthlySpending">$2,134.52</div>
-            <div class="hint">vs. budget $2,500</div>
+            <div class="stat__value" id="monthlySpending">$0.00</div>
+            <div class="hint" id="monthlySpendingHint">vs. budget $2,500</div>
             <div class="progress">
-              <div class="progress__bar" style="width: 85%"></div>
+              <div class="progress__bar" id="monthlySpendingProgress" style="width: 0%"></div>
             </div>
           </div>
 
+          <!-- Savings Goal (from Plaid current balance vs goal) -->
           <div class="card stat">
             <div class="stat__label">Savings Goal</div>
-            <div class="stat__value" id="savingsGoal">$7,200 / $10,000</div>
-            <div class="hint">Target: Dec 31</div>
+            <div class="stat__value" id="savingsGoalText">$0.00 / $10,000</div>
+            <div class="hint" id="savingsGoalHint">Target: Dec 31</div>
             <div class="progress">
-              <div class="progress__bar alt" style="width: 72%"></div>
+              <div class="progress__bar alt" id="savingsGoalProgress" style="width: 0%"></div>
             </div>
           </div>
         </div>
@@ -92,7 +94,7 @@
           <div class="card chart">
             <div class="card__title">Income vs. Expenses</div>
             <div class="bars" id="barChart" aria-label="Bar chart placeholder">
-              <!-- JS will replace with dynamic bars -->
+              <!-- JS will fully replace this -->
               <div class="bar">
                 <div class="bar__fill bar--income" style="height: 80%"></div>
                 <div class="bar__label">Income</div>
@@ -148,7 +150,7 @@
               <tbody id="txTable"></tbody>
             </table>
             <div class="table__footer">
-              <a class="link" href="#">View all</a>
+              <a class="link" href="/transaction-details.html">View all</a>
             </div>
           </div>
         </div>
@@ -173,5 +175,7 @@
 
   <!-- DASHBOARD JS -->
   <script src="static/dashboard.js"></script>
+  <!-- BANK JS (connect/disconnect button logic on settings/edit-profile) -->
+  <script src="static/bank_connect.js"></script>
 </body>
 </html>

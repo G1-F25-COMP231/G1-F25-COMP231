@@ -3,7 +3,7 @@ import io
 import base64
 import qrcode
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, date
 from urllib.parse import urlparse, urljoin
 
 from flask import (
@@ -20,6 +20,12 @@ from pymongo import MongoClient
 from bson.objectid import ObjectId
 import bcrypt
 import pyotp
+
+from plaid_client import (
+    get_current_balances,
+    get_recent_transactions,
+    create_sandbox_access_token,
+)
 
 # ---------------------------------------------------------------------------
 # Load config
@@ -49,10 +55,8 @@ db = mongo_client.get_database("BudgetMindAI")
 users_col = db.get_collection("users")
 entries_col = db.get_collection("entries")
 profile_pics_col = db.get_collection("profilepics")
+bank_accounts_col = db.get_collection("bank_account_connected")
 notes_col = db.get_collection("notes")
-
-
-
 
 # ---------------------------------------------------------------------------
 # Spending limits / flags
@@ -66,18 +70,17 @@ def recalc_spending_flag_for_user(user_id: str):
     Recalculate a user's total expense and update:
       - user.is_flagged (True/False)
       - user.notes (add 'Spending limit exceeded' once when over limit)
-    Currently uses ALL-TIME expenses. You can change this to monthly if needed.
+    Currently uses ALL-TIME expenses from entries collection.
     """
     try:
         user_obj_id = ObjectId(user_id)
     except Exception:
-        return  # invalid id, nothing to do
+        return
 
     user = users_col.find_one({"_id": user_obj_id})
     if not user:
         return
 
-    # 1) Compute total expenses for this user (all time)
     total_expense = 0.0
     for e in entries_col.find({"user_id": user_id}):
         if str(e.get("type", "")).lower() == "expense":
@@ -86,23 +89,18 @@ def recalc_spending_flag_for_user(user_id: str):
             except (TypeError, ValueError):
                 continue
 
-    # 2) Get this user's limit (or default)
     try:
         spending_limit = float(user.get("spending_limit", DEFAULT_SPENDING_LIMIT))
     except (TypeError, ValueError):
         spending_limit = DEFAULT_SPENDING_LIMIT
 
     is_over = total_expense > spending_limit
-
-    # 3) Prepare updates
     updates = {"is_flagged": is_over}
 
-    # 4) If over the limit, ensure we have a "Spending limit exceeded" note
     if is_over:
         note_text = "Spending limit exceeded"
         notes = user.get("notes", [])
 
-        # notes are stored as list of {"message": ..., "created_at": ...}
         has_note = any(
             isinstance(n, dict) and n.get("message") == note_text
             for n in notes
@@ -116,10 +114,10 @@ def recalc_spending_flag_for_user(user_id: str):
 
     users_col.update_one({"_id": user_obj_id}, {"$set": updates})
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _is_safe_url(target: str) -> bool:
     if not target:
@@ -160,9 +158,63 @@ def find_user_by_identifier(identifier: str):
         "$or": [{"email": ident}, {"username": ident}]
     })
 
+
+def _compute_total_balance(balances_payload: dict) -> float:
+    """
+    Sum current balances across all accounts from Plaid's /accounts/balance/get response.
+    """
+    total = 0.0
+    for acct in balances_payload.get("accounts", []):
+        bal = acct.get("balances", {}).get("current")
+        if bal is not None:
+            try:
+                total += float(bal)
+            except (TypeError, ValueError):
+                continue
+    return total
+
+
+def _classify_direction(name: str, category: str | None) -> bool:
+    """
+    Very simple heuristic to decide if a transaction is INCOME (True) or EXPENSE (False).
+    We then use this to decide + vs - sign for signed_amount.
+
+    Incomes: payroll, deposits, credits, refunds, interest.
+    Everything else -> expense.
+    """
+    label = f"{name or ''} {category or ''}".lower()
+    income_keywords = ["payroll", "deposit", "credit", "refund", "interest", "intrst"]
+    return any(k in label for k in income_keywords)
+
+
+def _simplify_transactions(tx_payload: dict):
+    """
+    Convert Plaid's transaction objects into a simpler list for the dashboard.
+    Dates are converted to ISO strings so MongoDB can store them.
+    """
+    result = []
+    for tx in tx_payload.get("transactions", []):
+        raw_date = tx.get("date")
+
+        if isinstance(raw_date, (date, datetime)):
+            date_str = raw_date.isoformat()
+        else:
+            date_str = str(raw_date) if raw_date is not None else None
+
+        result.append({
+            "date": date_str,
+            "name": tx.get("name"),
+            "category": " / ".join(tx.get("category", [])) if tx.get("category") else None,
+            "amount": tx.get("amount"),
+            "iso_currency_code": tx.get("iso_currency_code"),
+            "transaction_id": tx.get("transaction_id"),
+        })
+    return result
+
 # ---------------------------------------------------------------------------
 # Pages
 # ---------------------------------------------------------------------------
+
 
 @app.route("/")
 def login_page():
@@ -191,6 +243,12 @@ def settings():
     return render_template("settings.html")
 
 
+@app.route("/transaction-details.html")
+@login_required
+def transactiondetails():
+    return render_template("transaction-details.html")
+
+
 @app.route("/edit-profile.html")
 @login_required
 def edit_profile():
@@ -208,12 +266,137 @@ def budget_limit():
 def ai_insights():
     return render_template("ai_insights.html")
 
+
 @app.route("/entry")
 @login_required
 def entry_page():
     return render_template("entry.html")
 
+# ---------------------------------------------------------------------------
+# BANK / PLAID APIs
+# ---------------------------------------------------------------------------
 
+
+@app.route("/api/bank/connect-sandbox", methods=["POST"])
+@login_required
+def api_bank_connect_sandbox():
+    """
+    Attach a Plaid SANDBOX account to the logged-in user.
+
+    - Creates a sandbox access_token (fake bank)
+    - Fetches current balance + recent transactions
+    - Stores everything in bank_account_connected collection
+    """
+    user_id = session.get("user_id")
+    user = users_col.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        return jsonify({"ok": False, "message": "User not found."}), 404
+
+    email = (user.get("email") or "").strip().lower()
+    if not email:
+        return jsonify({"ok": False, "message": "User email missing."}), 400
+
+    try:
+        sandbox_creds = create_sandbox_access_token()
+        access_token = sandbox_creds["access_token"]
+        item_id = sandbox_creds["item_id"]
+
+        balances_raw = get_current_balances(access_token)
+        tx_raw = get_recent_transactions(access_token, days=30, count=100)
+
+        total_balance = _compute_total_balance(balances_raw)
+        recent_tx = _simplify_transactions(tx_raw)
+
+        doc = {
+            "user_id": user_id,
+            "email": email,
+            "access_token": access_token,  # in real prod, encrypt this
+            "item_id": item_id,
+            "current_balance": float(total_balance),
+            "recent_transactions": recent_tx,
+            "updated_at": datetime.utcnow(),
+        }
+
+        bank_accounts_col.update_one(
+            {"user_id": user_id},
+            {"$set": doc},
+            upsert=True,
+        )
+
+        return jsonify({
+            "ok": True,
+            "connected": True,
+            "current_balance": doc["current_balance"],
+            "recent_transactions": doc["recent_transactions"],
+        }), 200
+
+    except Exception as e:
+        print("[bank/connect-sandbox] ERROR:", e)
+        return jsonify({"ok": False, "message": "Failed to connect sandbox bank."}), 500
+
+
+@app.route("/api/bank/status", methods=["GET"])
+@login_required
+def api_bank_status():
+    """
+    Returns whether the user has a bank connected.
+    If connected, refreshes balances + recent transactions from Plaid sandbox.
+    """
+    user_id = session.get("user_id")
+    doc = bank_accounts_col.find_one({"user_id": user_id})
+
+    if not doc:
+        return jsonify({"ok": True, "connected": False}), 200
+
+    access_token = doc.get("access_token")
+    if not access_token:
+        bank_accounts_col.delete_one({"_id": doc["_id"]})
+        return jsonify({"ok": True, "connected": False}), 200
+
+    try:
+        balances_raw = get_current_balances(access_token)
+        tx_raw = get_recent_transactions(access_token, days=30, count=100)
+
+        total_balance = _compute_total_balance(balances_raw)
+        recent_tx = _simplify_transactions(tx_raw)
+
+        update = {
+            "current_balance": float(total_balance),
+            "recent_transactions": recent_tx,
+            "updated_at": datetime.utcnow(),
+        }
+
+        bank_accounts_col.update_one({"_id": doc["_id"]}, {"$set": update})
+        doc.update(update)
+
+        return jsonify({
+            "ok": True,
+            "connected": True,
+            "current_balance": doc["current_balance"],
+            "recent_transactions": doc["recent_transactions"],
+        }), 200
+
+    except Exception as e:
+        print("[bank/status] ERROR:", e)
+        return jsonify({
+            "ok": True,
+            "connected": True,
+            "current_balance": doc.get("current_balance"),
+            "recent_transactions": doc.get("recent_transactions", []),
+            "warning": "Failed to refresh from Plaid; returned cached data.",
+        }), 200
+
+
+@app.route("/api/bank/disconnect", methods=["POST"])
+@login_required
+def api_bank_disconnect():
+    """
+    Remove the sandbox bank from this user.
+    (For sandbox we just delete the record.)
+    """
+    user_id = session.get("user_id")
+    bank_accounts_col.delete_one({"user_id": user_id})
+    return jsonify({"ok": True, "connected": False, "message": "Bank disconnected."}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +453,7 @@ def api_register():
 # API: Login (Step 1) + Verify 2FA (Step 2)
 # ---------------------------------------------------------------------------
 
+
 @app.route("/api/login", methods=["POST"])
 def api_login():
     data = request.get_json(silent=True) or {}
@@ -284,7 +468,6 @@ def api_login():
     if not user or not verify_password(password, user.get("password_hash", "")):
         return jsonify({"ok": False, "message": invalid_msg}), 401
 
-    # If user has 2FA enabled
     if user.get("twofa_enabled") and user.get("totp_secret"):
         session.clear()
         session["pending_2fa_user_id"] = str(user["_id"])
@@ -295,7 +478,6 @@ def api_login():
             "message": "Password accepted. Proceeding to verification…"
         }), 200
 
-    # Otherwise log in directly
     session.clear()
     session["user_id"] = str(user["_id"])
     session["identifier"] = user.get("email") or user.get("username")
@@ -336,10 +518,11 @@ def api_verify_2fa():
 # ---------------------------------------------------------------------------
 # API: Enable / Disable 2FA
 # ---------------------------------------------------------------------------
+
+
 @app.route("/api/2fa-status", methods=["GET"])
 @login_required
 def get_2fa_status():
-    """Return whether the logged-in user has 2FA enabled."""
     user_id = session.get("user_id")
     user = users_col.find_one({"_id": ObjectId(user_id)})
 
@@ -351,7 +534,6 @@ def get_2fa_status():
     secret = None
 
     if twofa_enabled:
-        # Regenerate QR code for display (so it always shows)
         otp_uri = pyotp.TOTP(user["totp_secret"]).provisioning_uri(
             name=user["email"], issuer_name="BudgetMind AI"
         )
@@ -368,10 +550,10 @@ def get_2fa_status():
         "secret": secret
     }), 200
 
+
 @app.route("/api/setup-2fa", methods=["POST"])
 @login_required
 def setup_2fa():
-    """Generate and enable 2FA, returning a QR code."""
     user_id = session.get("user_id")
     user = users_col.find_one({"_id": ObjectId(user_id)})
     if not user:
@@ -410,10 +592,11 @@ def disable_2fa():
     )
     return jsonify({"ok": True, "message": "Two-factor authentication disabled."}), 200
 
+# ---------------------------------------------------------------------------
+# API: Get / Update Profile Picture & Profile
+# ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# API: Get Profile Picture (Base64)
-# ---------------------------------------------------------------------------
+
 @app.route("/api/profile-picture/<user_id>")
 @login_required
 def get_profile_picture(user_id):
@@ -426,9 +609,6 @@ def get_profile_picture(user_id):
         "image": f"data:image/png;base64,{pic['image']}"
     })
 
-# ---------------------------------------------------------------------------
-# API: Update Profile, Forgot Password, Summary, AI Chat
-# ---------------------------------------------------------------------------
 
 @app.route("/api/update-profile", methods=["POST"])
 @login_required
@@ -438,7 +618,6 @@ def update_profile():
     file = request.files.get("profilePic")
     update_fields = {}
 
-    # --- Text Field Updates ---
     if data.get("fullName"):
         update_fields["fullName"] = data["fullName"].strip()
     if data.get("username"):
@@ -448,15 +627,12 @@ def update_profile():
     if data.get("newPassword"):
         update_fields["password_hash"] = hash_password(data["newPassword"])
 
-    # --- Profile Picture Upload to MongoDB ---
     if file and file.filename != "":
         image_bytes = file.read()
         encoded_img = base64.b64encode(image_bytes).decode("utf-8")
 
-        # Remove old profile picture
         profile_pics_col.delete_many({"user_id": user_id})
 
-        # Insert new image
         profile_pics_col.insert_one({
             "user_id": user_id,
             "username": update_fields.get("username") or data.get("username"),
@@ -464,14 +640,11 @@ def update_profile():
             "updated_at": datetime.utcnow()
         })
 
-        # Reference stored inside users collection
         update_fields["profilePic"] = f"/api/profile-picture/{user_id}"
 
-    # --- No fields changed ---
     if not update_fields:
         return jsonify({"ok": False, "message": "No changes detected."}), 400
 
-    # --- Update User ---
     users_col.update_one({"_id": ObjectId(user_id)}, {"$set": update_fields})
 
     updated_user = users_col.find_one({"_id": ObjectId(user_id)}, {"password_hash": 0})
@@ -480,6 +653,9 @@ def update_profile():
 
     return jsonify({"ok": True, "message": "Profile updated successfully.", "user": updated_user}), 200
 
+# ---------------------------------------------------------------------------
+# Forgot Password
+# ---------------------------------------------------------------------------
 
 
 @app.route("/api/forgot_password", methods=["POST"])
@@ -501,27 +677,83 @@ def forgot_password():
 
     return jsonify({"ok": True, "message": "Password updated successfully."}), 200
 
+# ---------------------------------------------------------------------------
+# Summary API: Income vs Expense (Plaid first; fallback to entries)
+# ---------------------------------------------------------------------------
+
 
 @app.route("/api/summary")
 @login_required
 def api_summary():
     user_id = session.get("user_id")
+
+    # Try Plaid-based summary first
+    bank_doc = bank_accounts_col.find_one({"user_id": user_id})
+    if bank_doc and bank_doc.get("recent_transactions"):
+        total_income = 0.0
+        total_expense = 0.0
+        category_totals: dict[str, float] = {}
+
+        for tx in bank_doc["recent_transactions"]:
+            amt = float(tx.get("amount", 0) or 0)
+            signed = tx.get("signed_amount")
+
+            if signed is None:
+                # Re-derive if missing
+                name = tx.get("name") or ""
+                cat_str = tx.get("category")
+                is_income = _classify_direction(name, cat_str)
+                signed = amt if is_income else -amt
+
+            if signed > 0:
+                total_income += signed
+            elif signed < 0:
+                exp_val = abs(signed)
+                total_expense += exp_val
+                cat_name = tx.get("category") or "Other"
+                category_totals[cat_name] = category_totals.get(cat_name, 0.0) + exp_val
+
+        categories_list = [
+            {"name": name, "total": total}
+            for name, total in category_totals.items()
+        ]
+        categories_list.sort(key=lambda x: x["total"], reverse=True)
+
+        return jsonify({
+            "income": float(total_income),
+            "expense": float(total_expense),
+            "categories": categories_list,
+        }), 200
+
+    # Fallback: use manual entries if no bank transactions
     entries = list(entries_col.find({"user_id": user_id}))
-    total_income = sum(e["amount"] for e in entries if e["type"].lower() == "income")
-    total_expense = sum(e["amount"] for e in entries if e["type"].lower() == "expense")
+    total_income = sum(
+        float(e.get("amount", 0))
+        for e in entries
+        if str(e.get("type", "")).lower() == "income"
+    )
+    total_expense = sum(
+        float(e.get("amount", 0))
+        for e in entries
+        if str(e.get("type", "")).lower() == "expense"
+    )
 
     category_totals = {}
     for e in entries:
-        if e["type"].lower() == "expense":
-            cat = e["category"].capitalize()
-            category_totals[cat] = category_totals.get(cat, 0) + e["amount"]
+        if str(e.get("type", "")).lower() == "expense":
+            cat = str(e.get("category", "Other")).capitalize()
+            category_totals[cat] = category_totals.get(cat, 0.0) + float(e.get("amount", 0))
 
     sorted_categories = sorted(category_totals.items(), key=lambda x: x[1], reverse=True)
     return jsonify({
-        "income": total_income,
-        "expense": total_expense,
+        "income": float(total_income),
+        "expense": float(total_expense),
         "categories": [{"name": c, "total": t} for c, t in sorted_categories]
-    })
+    }), 200
+
+# ---------------------------------------------------------------------------
+# AI Chat (simple rules)
+# ---------------------------------------------------------------------------
 
 
 @app.route("/api/ai-chat", methods=["POST"])
@@ -546,6 +778,11 @@ def api_ai_chat():
         reply = "🤖 I'm still learning, but I can help with budgeting, saving, or spending insights!"
 
     return jsonify({"reply": reply})
+
+# ---------------------------------------------------------------------------
+# Manual Entry API (still used for budget limit features)
+# ---------------------------------------------------------------------------
+
 
 @app.route("/entry", methods=["POST"])
 @login_required
@@ -579,6 +816,10 @@ def add_entry():
 
     return jsonify({"ok": True, "message": "Entry added successfully!"}), 201
 
+# ---------------------------------------------------------------------------
+# User Profile API
+# ---------------------------------------------------------------------------
+
 
 @app.route("/api/user-profile")
 @login_required
@@ -593,6 +834,60 @@ def api_user_profile():
 
     user["_id"] = str(user["_id"])
     return jsonify({"ok": True, "user": user}), 200
+
+# ---------------------------------------------------------------------------
+# Transactions API (for transaction-details page)
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/transactions", methods=["GET"])
+@login_required
+def api_transactions():
+    """
+    Return up to ?limit=50 recent Plaid transactions for the logged-in user.
+    """
+    user_id = session.get("user_id")
+    doc = bank_accounts_col.find_one({"user_id": user_id})
+    if not doc or not doc.get("recent_transactions"):
+        return jsonify({"ok": True, "transactions": []}), 200
+
+    tx_list = doc["recent_transactions"]
+
+    # Sort newest -> oldest by date string (YYYY-MM-DD)
+    tx_list_sorted = sorted(
+        tx_list,
+        key=lambda tx: tx.get("date") or "",
+        reverse=True
+    )
+
+    try:
+        limit = int(request.args.get("limit", 50))
+    except ValueError:
+        limit = 50
+
+    return jsonify({
+        "ok": True,
+        "transactions": tx_list_sorted[:limit],
+    }), 200
+
+
+@app.route("/api/transactions/<tx_id>", methods=["GET"])
+@login_required
+def api_transaction_detail(tx_id):
+    """
+    Return a single transaction by Plaid transaction_id.
+    """
+    user_id = session.get("user_id")
+    doc = bank_accounts_col.find_one({"user_id": user_id})
+    if not doc or not doc.get("recent_transactions"):
+        return jsonify({"ok": False, "message": "No transactions found."}), 404
+
+    for tx in doc["recent_transactions"]:
+        if tx.get("transaction_id") == tx_id:
+            return jsonify({"ok": True, "transaction": tx}), 200
+
+    return jsonify({"ok": False, "message": "Transaction not found."}), 404
+
 
 #NOTES#
 
@@ -636,10 +931,10 @@ def delete_note(note_id):
     return redirect("/notes")
 
 
-
 # ---------------------------------------------------------------------------
 # Logout & Run
 # ---------------------------------------------------------------------------
+
 
 @app.route("/logout", methods=["GET", "POST"])
 def logout():
@@ -651,5 +946,3 @@ def logout():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080, debug=True)
-
-
