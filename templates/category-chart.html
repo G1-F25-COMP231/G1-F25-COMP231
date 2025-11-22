@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Category Breakdown — BudgetMind AI</title>
+  <link rel="stylesheet" href="category-chart.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand__logo">💠</div>
+        <div class="brand__name">BudgetMind AI</div>
+      </div>
+
+      <nav class="nav">
+        <a href="dashboard.html" class="nav__item">🏠 Dashboard</a>
+        <a href="transaction-details.html" class="nav__item">📄 Transactions</a>
+        <a href="settings.html" class="nav__item">⚙️ Settings</a>
+        <a href="category-chart.html" class="nav__item active">📊 Category Breakdown</a>
+        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn" id="toggleSidebar">☰</button>
+        <h1 class="page-title">Spending by Category</h1>
+      </header>
+
+      <section class="content">
+
+        <div class="card chart-card">
+          <h2 class="card__title">Category Spending Breakdown</h2>
+          <p class="card__subtitle">See where your money is going this month.</p>
+
+          <canvas id="categoryChart"></canvas>
+        </div>
+
+        <div class="card summary-card">
+          <h2 class="card__title">Summary</h2>
+
+          <div class="summary-grid">
+            <div class="summary-item">
+              <span class="label">Highest Category</span>
+              <span class="value" id="highestCategory">Dining ($412)</span>
+            </div>
+            <div class="summary-item">
+              <span class="label">Lowest Category</span>
+              <span class="value" id="lowestCategory">Transport ($54)</span>
+            </div>
+            <div class="summary-item">
+              <span class="label">Total Categories</span>
+              <span class="value">5</span>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <footer class="footer">
+        <a href="#">About</a> · <a href="#">Contact Support</a> · <a href="#">Privacy</a>
+      </footer>
+    </main>
+
+  </div>
+
+  <script src="category-chart.js"></script>
+</body>
+</html>
