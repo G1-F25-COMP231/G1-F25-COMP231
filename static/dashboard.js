@@ -15,6 +15,13 @@ if (toggleBtn && sidebar) {
 }
 
 // =======================
+// Simple money formatter
+// =======================
+function formatMoney(n) {
+  return `$${Number(n || 0).toFixed(2)}`;
+}
+
+// =======================
 // Load Profile Picture + Greeting from DB
 // =======================
 document.addEventListener("DOMContentLoaded", async () => {
@@ -37,7 +44,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.error("[Dashboard] Failed to load user profile:", err);
   }
 
-  // Load avatar from MongoDB
+  // Load avatar
   try {
     if (!window.userId || !avatar) return;
     const res = await fetch(`/api/profile-picture/${window.userId}`);
@@ -49,22 +56,20 @@ document.addEventListener("DOMContentLoaded", async () => {
       avatar.style.backgroundPosition = "center";
       avatar.textContent = "";
     } else {
-      const nameInitial =
+      const initial =
         (greeting &&
           greeting.textContent &&
-          greeting.textContent.replace("Hello, ", "").charAt(0)) ||
-        "U";
-      avatar.textContent = nameInitial;
+          greeting.textContent.replace("Hello, ", "").charAt(0)) || "U";
+      avatar.textContent = initial;
     }
   } catch (err) {
     console.warn("[Dashboard] No profile picture found.");
     if (avatar) {
-      const nameInitial =
+      const initial =
         (greeting &&
           greeting.textContent &&
-          greeting.textContent.replace("Hello, ", "").charAt(0)) ||
-        "U";
-      avatar.textContent = nameInitial;
+          greeting.textContent.replace("Hello, ", "").charAt(0)) || "U";
+      avatar.textContent = initial;
     }
   }
 
@@ -104,7 +109,13 @@ function renderTransactionsFromList(list) {
     .map((tx) => {
       const date = tx.date || "";
       const merchant = tx.merchant || tx.name || "Unknown";
-      const category = tx.category || "";
+
+      // 🔥 FIXED HERE — Use cleaned category from API
+      const category =
+        tx.resolved_category ||
+        (Array.isArray(tx.category) ? tx.category[0] : tx.category) ||
+        "Other";
+
       const txId = tx.transaction_id || "";
       const signed =
         typeof tx.amount === "number" ? tx.amount : Number(tx.amount || 0);
@@ -122,7 +133,7 @@ function renderTransactionsFromList(list) {
     .join("");
 }
 
-// Make rows clickable → go to transaction-details
+// Clickable rows → transaction-details
 if (txTable) {
   txTable.addEventListener("click", (e) => {
     const row = e.target.closest("tr[data-txid]");
@@ -137,8 +148,7 @@ if (txTable) {
 }
 
 // =======================
-// Income vs Expense Chart (two bars only)
-// Uses /api/summary → income, expense
+// Income vs Expense Bar Chart
 // =======================
 async function updateBarChart() {
   try {
@@ -153,7 +163,7 @@ async function updateBarChart() {
     const income = Number(data.income || 0);
     const expense = Number(data.expense || 0);
 
-    const maxVal = Math.max(income, expense, 1); // avoid divide by 0
+    const maxVal = Math.max(income, expense, 1);
     const minHeight = 10;
     const chartHeight = 220;
 
@@ -172,7 +182,10 @@ async function updateBarChart() {
     // Expense bar
     const expenseBarWrapper = document.createElement("div");
     expenseBarWrapper.className = "bar";
-    const expenseHeight = Math.max((expense / maxVal) * chartHeight, minHeight);
+    const expenseHeight = Math.max(
+      (expense / maxVal) * chartHeight,
+      minHeight
+    );
     expenseBarWrapper.innerHTML = `
       <div class="bar__fill bar--expense" style="height:${expenseHeight}px"></div>
       <div class="bar__label">
@@ -188,7 +201,54 @@ async function updateBarChart() {
 document.addEventListener("DOMContentLoaded", updateBarChart);
 
 // =======================
-// AI Insights Refresh Tips
+// CATEGORY BREAKDOWN (Donut Chart)
+// =======================
+async function updateCategoryDonut() {
+  try {
+    const res = await fetch("/api/category-breakdown");
+    const list = await res.json();
+
+    if (!Array.isArray(list) || list.length === 0) {
+      console.warn("[Dashboard] No category data");
+      return;
+    }
+
+    drawCategoryDonut(list);
+  } catch (err) {
+    console.error("[Dashboard] Category breakdown failed:", err);
+  }
+}
+
+// Draw donut
+function drawCategoryDonut(list) {
+  const slices = document.querySelectorAll(".donut__slice");
+  const legends = document.querySelectorAll(".donut__legend span");
+
+  if (!slices.length || !legends.length) return;
+
+  const total = list.reduce(
+    (sum, x) => sum + Number(x.total || 0),
+    0
+  );
+  if (total <= 0) return;
+
+  let offset = 0;
+
+  list.slice(0, 3).forEach((item, i) => {
+    const percent = (item.total / total) * 100;
+    const dasharray = `${percent} ${100 - percent}`;
+
+    slices[i].setAttribute("stroke-dasharray", dasharray);
+    slices[i].setAttribute("stroke-dashoffset", offset);
+
+    legends[i].innerText = `${item.category} (${formatMoney(item.total)})`;
+
+    offset += percent;
+  });
+}
+
+// =======================
+// AI Insights (static rotation)
 // =======================
 const refreshAI = document.getElementById("refreshAI");
 const aiInsights = document.getElementById("aiInsights");
@@ -210,7 +270,7 @@ if (refreshAI && aiInsights) {
 }
 
 // =======================
-// Logout Button
+// Logout
 // =======================
 const logoutBtn = document.querySelector(".logout");
 if (logoutBtn) {
@@ -283,25 +343,24 @@ if (chatForm && chatMessages && chatInput) {
 }
 
 // =======================
-// BANK: Use Plaid sandbox data for balance + monthly spending + savings goal
-// Any +amount = income, any -amount = expense
+// BANK STATUS UI
 // =======================
 
-const MONTHLY_BUDGET_TARGET = 2500; // $2,500 monthly spending budget
-const SAVINGS_GOAL_TARGET = 10000;  // $10,000 savings goal
+const MONTHLY_BUDGET_TARGET = 2500;
+const SAVINGS_GOAL_TARGET = 10000;
 
 async function updateBankUI() {
   const balanceEl = document.getElementById("totalBalance");
 
   const monthlySpendingEl = document.getElementById("monthlySpending");
   const monthlySpendingHintEl = document.getElementById("monthlySpendingHint");
-  const monthlySpendingProgressEl = document.getElementById(
-    "monthlySpendingProgress"
-  );
+  const monthlySpendingProgressEl =
+    document.getElementById("monthlySpendingProgress");
 
   const savingsGoalTextEl = document.getElementById("savingsGoalText");
   const savingsGoalHintEl = document.getElementById("savingsGoalHint");
-  const savingsGoalProgressEl = document.getElementById("savingsGoalProgress");
+  const savingsGoalProgressEl =
+    document.getElementById("savingsGoalProgress");
 
   function resetBankUI() {
     if (balanceEl) balanceEl.textContent = "$0.00";
@@ -340,7 +399,7 @@ async function updateBankUI() {
     const currentBal =
       typeof data.current_balance === "number" ? data.current_balance : 0;
 
-    // 1) Total Balance card
+    // 1) Total Balance
     if (balanceEl) {
       balanceEl.textContent = `$${currentBal.toFixed(2)}`;
     }
@@ -350,13 +409,12 @@ async function updateBankUI() {
       ? data.recent_transactions
       : [];
 
-    // Build list with signed amounts for UI (+income, -expense)
     const uiTx = recent.map((tx) => {
       const raw = Number(tx.amount || 0);
       const signed =
         typeof tx.signed_amount === "number"
           ? tx.signed_amount
-          : raw; // fallback if missing
+          : raw;
 
       return {
         date: tx.date,
@@ -369,9 +427,9 @@ async function updateBankUI() {
 
     renderTransactionsFromList(uiTx);
 
-    // 3) Split by sign: +amount => income, -amount => expense
+    // 3) Income vs Expense
     let totalIncome = 0;
-    let totalExpense = 0; // stored positive for UI
+    let totalExpense = 0;
 
     uiTx.forEach((tx) => {
       const amt = Number(tx.amount || 0);
@@ -379,7 +437,6 @@ async function updateBankUI() {
       else if (amt < 0) totalExpense += Math.abs(amt);
     });
 
-    // Monthly Spending = expenses
     const spendingAbs = totalExpense;
 
     if (monthlySpendingEl) {
@@ -398,7 +455,7 @@ async function updateBankUI() {
       monthlySpendingProgressEl.style.width = `${pct}%`;
     }
 
-    // Savings goal vs current balance
+    // 4) Savings Goal
     if (savingsGoalTextEl) {
       savingsGoalTextEl.textContent = `$${currentBal.toFixed(
         2
@@ -420,7 +477,93 @@ async function updateBankUI() {
   }
 }
 
+// =======================
+// Dashboard Category Pie Chart (REAL DATA)
+// =======================
+
+let categoryChart = null;
+
+// Load filtered category chart
+async function loadCategoryChart(filter = "30") {
+  try {
+    const res = await fetch(`/api/category-breakdown?range=${filter}`);
+    const data = await res.json();
+
+    if (!data || data.length === 0) return;
+
+    const labels = data.map(i => i.category);
+    const values = data.map(i => i.total);
+
+    const ctx = document.getElementById("dashboardCategoryChart").getContext("2d");
+
+    if (categoryChart) categoryChart.destroy();
+
+    categoryChart = new Chart(ctx, {
+      type: "pie",
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: [
+            "#00ffff", "#00b3b3", "#38d9ff", "#4ce0d2",
+            "#75f5e3", "#009999", "#66fff2", "#ff6b6b"
+          ],
+          borderColor: "#0a192f",
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            labels: {
+              color: "#e0e6ed",
+              font: { size: 14 }
+            }
+          }
+        }
+      }
+    });
+
+  } catch (err) {
+    console.error("Pie chart load error:", err);
+  }
+}
+
+
+// =======================
+// Run dashboard updates
+// =======================
 document.addEventListener("DOMContentLoaded", () => {
   updateBankUI();
-  setInterval(updateBankUI, 600000); // every 10 minutes
+  loadCategoryChart("all");   // <-- FIRST LOAD uses new chart function
+
+  // Refresh bank every 10 minutes
+  setInterval(updateBankUI, 600000);
 });
+
+// =======================
+// CATEGORY FILTER DROPDOWN
+// =======================
+document.addEventListener("DOMContentLoaded", () => {
+  const filter = document.getElementById("categoryFilter");
+  if (!filter) return;
+
+  filter.addEventListener("change", (e) => {
+    const mode = e.target.value;
+    loadCategoryChart(mode);   // <-- NOW THE DROPDOWN WORKS
+  });
+});
+
+
+
+
+// =======================
+// Run dashboard updates
+// =======================
+document.addEventListener("DOMContentLoaded", () => {
+  updateBankUI();
+   loadCategoryChart   // <-- NEW pie chart
+  setInterval(updateBankUI, 600000);
+});
+

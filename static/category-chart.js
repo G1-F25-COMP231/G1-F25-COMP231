@@ -6,41 +6,86 @@ toggleBtn.addEventListener("click", () => {
   sidebar.classList.toggle("hidden");
 });
 
-// Example data
-const data = {
-  labels: ["Dining", "Groceries", "Transport", "Bills", "Shopping"],
-  datasets: [{
-    label: "Spending",
-    data: [412, 280, 54, 190, 120],
-    backgroundColor: [
-      "#00ffff",
-      "#00b3b3",
-      "#38d9ff",
-      "#4ce0d2",
-      "#75f5e3"
-    ],
-    borderColor: "#0a192f",
-    borderWidth: 2,
-  }]
-};
+// -------------------------------
+// Fetch Category Breakdown
+// -------------------------------
+async function loadCategoryData() {
+  try {
+    const res = await fetch("/api/category-breakdown");
+    const breakdown = await res.json();
 
-const ctx = document.getElementById("categoryChart");
-new Chart(ctx, {
-  type: "pie",
-  data: data,
-  options: {
-    responsive: true,
-    plugins: {
-      legend: {
-        labels: {
-          color: "#e0e6ed",
-          font: { size: 14 }
+    if (!Array.isArray(breakdown)) {
+      console.error("Invalid category data:", breakdown);
+      return;
+    }
+
+    const labels = breakdown.map(x => x.category);
+    const dataValues = breakdown.map(x => x.total);
+
+    renderChart(labels, dataValues);
+    updateSummary(breakdown);
+
+  } catch (err) {
+    console.error("Failed to load category breakdown:", err);
+  }
+}
+
+// -------------------------------
+// Render Chart.js Pie Chart
+// -------------------------------
+function renderChart(labels, dataValues) {
+  const colors = [
+    "#00ffff",
+    "#00b3b3",
+    "#38d9ff",
+    "#4ce0d2",
+    "#75f5e3",
+    "#009999",
+    "#66fff2"
+  ];
+
+  const ctx = document.getElementById("categoryChart");
+
+  new Chart(ctx, {
+    type: "pie",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Spending",
+        data: dataValues,
+        backgroundColor: colors.slice(0, labels.length),
+        borderColor: "#0a192f",
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          labels: {
+            color: "#e0e6ed",
+            font: { size: 14 }
+          }
         }
       }
     }
-  }
-});
+  });
+}
 
-// Summary calculations (static example)
-document.getElementById("highestCategory").innerText = "Dining ($412)";
-document.getElementById("lowestCategory").innerText = "Transport ($54)";
+// -------------------------------
+// Summary Section
+// -------------------------------
+function updateSummary(breakdown) {
+  if (breakdown.length === 0) return;
+
+  const highest = breakdown[0];
+  const lowest = breakdown[breakdown.length - 1];
+
+  document.getElementById("highestCategory").innerText =
+    `${highest.category} ($${highest.total})`;
+
+  document.getElementById("lowestCategory").innerText =
+    `${lowest.category} ($${lowest.total})`;
+}
+
+loadCategoryData();

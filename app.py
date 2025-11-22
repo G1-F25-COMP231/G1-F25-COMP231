@@ -61,6 +61,26 @@ notes_col = db.get_collection("notes")
 # ---------------------------------------------------------------------------
 # Spending limits / flags
 # ---------------------------------------------------------------------------
+def resolve_category(raw_list):
+    if not raw_list or not isinstance(raw_list, list):
+        return "Other"
+
+    raw = raw_list[0].lower()
+
+    if "uber" in raw or "lyft" in raw:
+        return "Transport"
+    if "mcdonald" in raw or "starbucks" in raw:
+        return "Food & Drink"
+    if "pay" in raw or "payment" in raw:
+        return "Bills"
+    if "airlines" in raw or "flight" in raw:
+        return "Travel"
+    if "deposit" in raw or "credit" in raw:
+        return "Income"
+
+    return raw_list[0].title()
+
+
 
 DEFAULT_SPENDING_LIMIT = 1000.0  # fallback if user doesn't have their own limit
 
@@ -189,27 +209,54 @@ def _classify_direction(name: str, category: str | None) -> bool:
 
 def _simplify_transactions(tx_payload: dict):
     """
-    Convert Plaid's transaction objects into a simpler list for the dashboard.
-    Dates are converted to ISO strings so MongoDB can store them.
+    Converts Plaid transactions to simplified objects with correct categories.
+    Uses:
+    - category[]
+    - personal_finance_category.primary
+    - fallback to Uncategorized
     """
+
     result = []
     for tx in tx_payload.get("transactions", []):
+        # Date fix
         raw_date = tx.get("date")
-
         if isinstance(raw_date, (date, datetime)):
             date_str = raw_date.isoformat()
         else:
-            date_str = str(raw_date) if raw_date is not None else None
+            date_str = str(raw_date)
+
+        # --- CATEGORY FIX ---
+        category = None
+
+        # 1. Try normal Plaid category list
+        cat_list = tx.get("category") or []
+        if isinstance(cat_list, list) and len(cat_list) > 0:
+            category = " / ".join(cat_list)
+
+        # 2. Try personal_finance_category.primary
+        if not category:
+            pfc = tx.get("personal_finance_category", {})
+            category = (
+                pfc.get("primary")
+                or pfc.get("detailed")
+                or None
+            )
+
+        # 3. Fallback to Uncategorized
+        if not category:
+            category = "Uncategorized"
 
         result.append({
             "date": date_str,
             "name": tx.get("name"),
-            "category": " / ".join(tx.get("category", [])) if tx.get("category") else None,
+            "category": category,
             "amount": tx.get("amount"),
             "iso_currency_code": tx.get("iso_currency_code"),
             "transaction_id": tx.get("transaction_id"),
         })
+
     return result
+
 
 # ---------------------------------------------------------------------------
 # Pages
@@ -230,7 +277,6 @@ def register_page():
 @login_required
 def dashboard():
     return render_template("dashboard.html")
-
 
 @app.route("/forgot_password.html")
 def forgot_password_page():
@@ -929,6 +975,82 @@ def delete_note(note_id):
     """Delete an existing note"""
     notes_col.delete_one({"_id": ObjectId(note_id)})
     return redirect("/notes")
+
+
+
+def assign_category(name: str) -> str:
+    if not name:
+        return "Other"
+    
+    n = name.lower()
+
+    # Dining
+    if "starbucks" in n or "mcdonald" in n or "pizza" in n or "coffee" in n:
+        return "Dining"
+
+    # Transport
+    if "uber" in n or "lyft" in n or "taxi" in n or "bus" in n:
+        return "Transport"
+
+    # Travel
+    if "airlines" in n or "hotel" in n or "airbnb" in n:
+        return "Travel"
+
+    # Shopping
+    if "amazon" in n or "walmart" in n or "target" in n or "sparkfun" in n:
+        return "Shopping"
+
+    # Fitness
+    if "gym" in n or "fitness" in n or "climbing" in n:
+        return "Fitness"
+
+    # Income (ignore in pie)
+    if "deposit" in n or "payroll" in n or "credit" in n:
+        return "Income"
+
+    # Bills
+    if "payment" in n or "bill" in n:
+        return "Bills"
+
+    return "Other"
+
+
+
+@app.get("/api/category-breakdown")
+@login_required
+def api_category_breakdown():
+    user_id = session.get("user_id")
+
+    bank_doc = bank_accounts_col.find_one({"user_id": user_id})
+    if not bank_doc or not bank_doc.get("access_token"):
+        return jsonify([]), 200
+
+    access_token = bank_doc["access_token"]
+    tx_response = get_recent_transactions(access_token, days=30)
+    transactions = tx_response.get("transactions", [])
+
+    summary = {}
+
+    for tx in transactions:
+        name = tx.get("name", "")
+        amount = float(tx.get("amount", 0))
+
+        # classify category
+        cat = assign_category(name)
+
+        # Only expenses go in pie chart
+        if amount > 0:  
+            summary[cat] = summary.get(cat, 0) + amount
+
+    breakdown = [
+        {"category": cat, "total": round(total, 2)}
+        for cat, total in summary.items()
+    ]
+
+    breakdown.sort(key=lambda x: x["total"], reverse=True)
+
+    return jsonify(breakdown)
+
 
 
 # ---------------------------------------------------------------------------
