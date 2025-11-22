@@ -6,4 +6,4 @@ pyotp
 qrcode
 pillow
 gunicorn
-plaid-python==8.0.0
+plaid-python
