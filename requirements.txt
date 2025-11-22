@@ -6,4 +6,4 @@ pyotp
 qrcode
 pillow
 gunicorn
-plaid-client
+plaid
