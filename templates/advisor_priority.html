@@ -9,6 +9,14 @@
   and manage follow-up strategies.
 </p>
 
+<!-- Client selector -->
+<div class="summary-controls" style="margin-bottom: 20px;">
+  <label for="clientSelect">Client:</label>
+  <select id="clientSelect">
+    <option value="">Select a client…</option>
+  </select>
+</div>
+
 <div class="priority-card">
 
   <h2>Select Priority Level</h2>
@@ -35,6 +43,8 @@
   <button class="btn save-btn" onclick="savePriority()">Save Priority</button>
 </div>
 
-<script src="/static/advisor_priority.js"></script>
+{% endblock %}
 
+{% block extra_scripts %}
+  <script src="/static/advisor_priority.js"></script>
 {% endblock %}
