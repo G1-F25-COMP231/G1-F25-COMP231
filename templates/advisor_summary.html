@@ -1,0 +1,35 @@
+{% extends "advisor.html" %}
+
+{% block content %}
+
+<h1 class="page-title">Client Financial Summary</h1>
+
+<div class="summary-controls">
+  <label>Time Range:</label>
+  <select id="timeFilter" onchange="reloadSummary()">
+    <option value="month">This Month</option>
+    <option value="quarter">This Quarter</option>
+    <option value="year">This Year</option>
+  </select>
+</div>
+
+<div class="summary-grid">
+
+  <!-- LINE CHART -->
+  <div class="summary-card">
+    <h2>Income vs Expenses</h2>
+    <canvas id="lineChart"></canvas>
+  </div>
+
+  <!-- PIE CHART -->
+  <div class="summary-card">
+    <h2>Category Breakdown</h2>
+    <canvas id="pieChart"></canvas>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/static/advisor_summary.js"></script>
+
+{% endblock %}

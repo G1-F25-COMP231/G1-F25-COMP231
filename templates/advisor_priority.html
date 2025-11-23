@@ -1,0 +1,40 @@
+{% extends "advisor.html" %}
+
+{% block content %}
+
+<h1 class="page-title">Priority Tag Manager</h1>
+
+<p class="priority-desc">
+  Advisors can set a priority rating for clients to help classify financial risk
+  and manage follow-up strategies.
+</p>
+
+<div class="priority-card">
+
+  <h2>Select Priority Level</h2>
+
+  <div class="priority-options">
+
+    <div class="priority-option" data-level="high">
+      <span class="priority-dot high"></span>
+      <span class="priority-label">High Priority</span>
+    </div>
+
+    <div class="priority-option" data-level="medium">
+      <span class="priority-dot medium"></span>
+      <span class="priority-label">Medium Priority</span>
+    </div>
+
+    <div class="priority-option" data-level="low">
+      <span class="priority-dot low"></span>
+      <span class="priority-label">Low Priority</span>
+    </div>
+
+  </div>
+
+  <button class="btn save-btn" onclick="savePriority()">Save Priority</button>
+</div>
+
+<script src="/static/advisor_priority.js"></script>
+
+{% endblock %}

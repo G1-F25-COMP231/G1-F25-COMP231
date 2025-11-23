@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BudgetMind AI — Advisor</title>
+  <link rel="stylesheet" href="/static/advisor_dashboard.css" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+
+<body>
+  <div class="advisor-app">
+
+    <!-- =============================
+         LARGE SIDEBAR (Advisor Only)
+       ============================= -->
+    <aside class="advisor-sidebar">
+      <div class="brand">
+        <div class="brand__logo">💠</div>
+        <div class="brand__name">Advisor Panel</div>
+      </div>
+
+      <nav class="nav">
+        <a class="nav__item" href="/advisor_dashboard">📊 Advisor Overview</a>
+        <a class="nav__item" href="/advisor_clients">👥 Client List</a>
+        <a class="nav__item" href="/advisor_summary">📘 Financial Summary</a>
+        <a class="nav__item" href="/advisor_priority">🏷 Priority Tags</a>
+        <a class="nav__item" href="/settings">⚙️ Settings</a>
+        <a class="nav__item logout" href="/logout">🚪 Logout</a>
+      </nav>
+    </aside>
+
+    <!-- =============================
+         MAIN CONTENT AREA
+       ============================= -->
+    <main class="advisor-main">
+      {% block content %}{% endblock %}
+    </main>
+
+  </div>
+
+  <script src="/static/advisor_dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,309 @@
+/* ===========================================
+   GLOBAL ADVISOR APP LAYOUT
+   =========================================== */
+.advisor-app {
+  display: flex;
+  height: 100vh;
+  background: #0b0f16;
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ===========================================
+   LARGE SIDEBAR (260px)
+   =========================================== */
+.advisor-sidebar {
+  width: 260px;
+  background: #0f1622;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  padding: 25px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding-bottom: 10px;
+}
+
+.brand__logo {
+  font-size: 32px;
+}
+
+.brand__name {
+  font-size: 20px;
+  font-weight: 700;
+  background: linear-gradient(to right, #2afadf, #4c83ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nav__item {
+  padding: 12px 15px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: #e2e6ed;
+  font-size: 15px;
+  transition: background 0.2s ease;
+}
+
+.nav__item:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.logout {
+  margin-top: 40px;
+  color: #ff6b6b !important;
+}
+
+/* ===========================================
+   MAIN CONTENT
+   =========================================== */
+.advisor-main {
+  flex: 1;
+  padding: 40px;
+  overflow-y: auto;
+}
+
+.page-title {
+  font-size: 28px;
+  margin-bottom: 30px;
+  font-weight: 700;
+  background: linear-gradient(to right, #2afadf, #4c83ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ===========================================
+   DASHBOARD CARDS
+   =========================================== */
+.advisor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 25px;
+}
+
+.advisor-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 25px;
+  border-radius: 16px;
+  box-shadow: 0 0 25px rgba(0,0,0,0.25);
+}
+
+.advisor-card h2 {
+  margin-bottom: 8px;
+}
+
+.advisor-card p {
+  color: #b9c3cf;
+  margin-bottom: 15px;
+}
+
+.btn {
+  background: linear-gradient(to right, #2afadf, #4c83ff);
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #0b0f16;
+  transition: opacity 0.2s ease;
+}
+
+.btn:hover {
+  opacity: 0.85;
+}
+
+
+/* ===========================================
+   CLIENT TABLE
+   =========================================== */
+.advisor-table-wrapper {
+  background: rgba(255,255,255,0.03);
+  padding: 25px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 0 25px rgba(0,0,0,0.25);
+}
+
+.advisor-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.advisor-table th,
+.advisor-table td {
+  padding: 14px 18px;
+  text-align: left;
+  font-size: 15px;
+}
+
+.advisor-table th {
+  background: rgba(255,255,255,0.05);
+  color: #dfe6ef;
+  font-weight: 600;
+}
+
+.advisor-table tr {
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.advisor-table tr:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+.priority-tag {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0b0f16;
+}
+
+.priority-high {
+  background: #ff6b6b;
+}
+
+.priority-medium {
+  background: #ffd93d;
+}
+
+.priority-low {
+  background: #6bff95;
+}
+
+.view-btn {
+  background: linear-gradient(to right, #2afadf, #4c83ff);
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #0b0f16;
+  font-weight: 600;
+}
+
+
+/* ===========================================
+   SUMMARY PAGE LAYOUT
+   =========================================== */
+.summary-controls {
+  margin-bottom: 25px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.summary-controls select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #0f1622;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 25px;
+}
+
+.summary-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 25px;
+  border-radius: 16px;
+  box-shadow: 0 0 25px rgba(0,0,0,0.25);
+}
+
+.summary-card h2 {
+  margin-bottom: 18px;
+  font-size: 18px;
+}
+
+
+/* =============================
+   PRIORITY MANAGER UI
+   ============================= */
+.priority-desc {
+  color: #b8c4d1;
+  max-width: 600px;
+  margin-bottom: 25px;
+}
+
+.priority-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 30px;
+  border-radius: 16px;
+  max-width: 550px;
+  box-shadow: 0 0 25px rgba(0,0,0,0.25);
+}
+
+.priority-card h2 {
+  margin-bottom: 20px;
+}
+
+.priority-options {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Each selectable row */
+.priority-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 15px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.priority-option:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+.priority-option.selected {
+  background: linear-gradient(to right, #2afadf, #4c83ff);
+  color: #0b0f16;
+  font-weight: 600;
+}
+
+.priority-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.priority-dot.high {
+  background: #ff6b6b;
+}
+
+.priority-dot.medium {
+  background: #ffd93d;
+}
+
+.priority-dot.low {
+  background: #6bff95;
+}
+
+/* Save Button */
+.save-btn {
+  margin-top: 20px;
+  width: 100%;
+  font-size: 16px;
+}

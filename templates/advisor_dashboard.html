@@ -1,0 +1,33 @@
+{% extends "advisor.html" %}
+
+{% block content %}
+
+<h1 class="page-title">Financial Advisor Dashboard</h1>
+
+<div class="advisor-grid">
+
+  <!-- Client List -->
+  <div class="advisor-card">
+    <h2>Client List</h2>
+    <p>View all registered users under your supervision.</p>
+    <button class="btn" onclick="loadAdvisorClients()">Load Clients</button>
+  </div>
+
+  <!-- Spending Insights -->
+  <div class="advisor-card">
+    <h2>Spending Insights</h2>
+    <p>Analyze client financial behavior and categories.</p>
+    <button class="btn" onclick="openSpendingInsights()">View Insights</button>
+  </div>
+
+  <!-- Financial Summary -->
+  <div class="advisor-card">
+    <h2>Financial Summary</h2>
+    <p>Review aggregated monthly and yearly performance.</p>
+    <button class="btn" onclick="openAdvisorSummary()">View Summary</button>
+  </div>
+  
+
+</div>
+
+{% endblock %}

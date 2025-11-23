@@ -1,0 +1,67 @@
+{% extends "advisor.html" %}
+
+{% block content %}
+
+<h1 class="page-title">Client List</h1>
+
+<div class="advisor-table-wrapper">
+  <table class="advisor-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Status</th>
+        <th>Priority</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="clientsTableBody"></tbody>
+  </table>
+</div>
+
+<script>
+console.log("LOADED PAGE: firing loadClients()");
+
+async function loadClients() {
+    console.log("Fetching /api/advisor/clients...");
+    const res = await fetch("/api/advisor/clients");
+    const data = await res.json();
+    console.log("API response:", data);
+
+    const tbody = document.getElementById("clientsTableBody");
+    tbody.innerHTML = "";
+
+    data.clients.forEach(c => {
+        const row = document.createElement("tr");
+
+        row.innerHTML = `
+    <td>${c.fullName}</td>
+    <td>${c.email}</td>
+    <td>${c.status}</td>
+    <td>${c.priority}</td>
+    <td>
+        <button class="btn">View</button>
+    </td>
+    <td>
+        <button class="btn" onclick="selectClient('${c._id}')">
+            Priority
+        </button>
+    </td>
+`;
+
+
+
+        tbody.appendChild(row);
+    });
+}
+
+function selectClient(id) {
+    console.log("Selected Client Saved:", id);
+    localStorage.setItem("selectedClientId", id);
+    window.location.href = "/advisor_priority";
+}
+
+document.addEventListener("DOMContentLoaded", loadClients);
+</script>
+
+{% endblock %}

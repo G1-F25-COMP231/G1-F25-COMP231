@@ -1,9 +1,9 @@
 import os
-import openai
+from openai import OpenAI
 from flask import request, jsonify
 from app import app, login_required
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @app.route("/api/ai-chat", methods=["POST"])
 @login_required
@@ -15,15 +15,16 @@ def api_ai_chat():
         return jsonify({"reply": "Please type something to chat!"})
 
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are BudgetMind AI, a friendly personal finance assistant."},
                 {"role": "user", "content": user_msg}
             ],
             temperature=0.7
         )
-        ai_reply = response["choices"][0]["message"]["content"].strip()
+
+        ai_reply = response.choices[0].message.content.strip()
 
     except Exception as e:
         print("AI Chat error:", e)
