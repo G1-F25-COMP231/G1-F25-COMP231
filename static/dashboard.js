@@ -110,7 +110,7 @@ function renderTransactionsFromList(list) {
       const date = tx.date || "";
       const merchant = tx.merchant || tx.name || "Unknown";
 
-      // 🔥 FIXED HERE — Use cleaned category from API
+      // Use cleaned category from API
       const category =
         tx.resolved_category ||
         (Array.isArray(tx.category) ? tx.category[0] : tx.category) ||
@@ -201,7 +201,7 @@ async function updateBarChart() {
 document.addEventListener("DOMContentLoaded", updateBarChart);
 
 // =======================
-// CATEGORY BREAKDOWN (Donut Chart)
+// CATEGORY BREAKDOWN (Donut Chart — legacy)
 // =======================
 async function updateCategoryDonut() {
   try {
@@ -484,7 +484,7 @@ async function updateBankUI() {
 let categoryChart = null;
 
 // Load filtered category chart
-async function loadCategoryChart(filter = "30") {
+async function loadCategoryChart(filter = "all") {
   try {
     const res = await fetch(`/api/category-breakdown?range=${filter}`);
     const data = await res.json();
@@ -494,7 +494,9 @@ async function loadCategoryChart(filter = "30") {
     const labels = data.map(i => i.category);
     const values = data.map(i => i.total);
 
-    const ctx = document.getElementById("dashboardCategoryChart").getContext("2d");
+    const canvas = document.getElementById("dashboardCategoryChart");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
 
     if (categoryChart) categoryChart.destroy();
 
@@ -530,40 +532,159 @@ async function loadCategoryChart(filter = "30") {
   }
 }
 
+// =======================
+// CATEGORY FILTER DROPDOWN
+// =======================
+document.addEventListener("DOMContentLoaded", () => {
+  const filter = document.getElementById("pieFilter");
+  if (!filter) return;
+
+  filter.addEventListener("change", (e) => {
+    const mode = e.target.value;
+    loadCategoryChart(mode);
+  });
+});
 
 // =======================
 // Run dashboard updates
 // =======================
 document.addEventListener("DOMContentLoaded", () => {
   updateBankUI();
-  loadCategoryChart("all");   // <-- FIRST LOAD uses new chart function
-
+  loadCategoryChart("all");
   // Refresh bank every 10 minutes
   setInterval(updateBankUI, 600000);
 });
 
 // =======================
-// CATEGORY FILTER DROPDOWN
+// CLIENT NOTIFICATION SYSTEM
 // =======================
 document.addEventListener("DOMContentLoaded", () => {
-  const filter = document.getElementById("categoryFilter");
-  if (!filter) return;
+  initClientNotifications();
+});
 
-  filter.addEventListener("change", (e) => {
-    const mode = e.target.value;
-    loadCategoryChart(mode);   // <-- NOW THE DROPDOWN WORKS
+function initClientNotifications() {
+  const btn = document.getElementById("notificationsBtn");
+  const badge = document.getElementById("notificationsBadge");
+  const panel = document.getElementById("notificationsPanel");
+  const closeBtn = document.getElementById("closeNotifications");
+  const listEl = document.getElementById("notificationsList");
+
+  if (!btn || !badge || !panel || !closeBtn || !listEl) {
+    console.warn("[dashboard.js] Notification elements not found");
+    return;
+  }
+
+  const togglePanel = () => {
+    panel.classList.toggle("hidden");
+  };
+
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    togglePanel();
   });
-});
 
+  closeBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    panel.classList.add("hidden");
+  });
 
+  // Close if clicking outside
+  document.addEventListener("click", (e) => {
+    if (!panel.classList.contains("hidden")) {
+      const clickedInsidePanel = panel.contains(e.target);
+      const clickedBell = btn.contains(e.target);
+      if (!clickedInsidePanel && !clickedBell) {
+        panel.classList.add("hidden");
+      }
+    }
+  });
 
+  // Load immediately + poll every 30s
+  fetchClientRequests();
+  setInterval(fetchClientRequests, 30000);
 
-// =======================
-// Run dashboard updates
-// =======================
-document.addEventListener("DOMContentLoaded", () => {
-  updateBankUI();
-   loadCategoryChart   // <-- NEW pie chart
-  setInterval(updateBankUI, 600000);
-});
+  function fetchClientRequests() {
+    fetch("/api/client/requests")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.ok) {
+          console.warn("client requests not ok:", data);
+          return;
+        }
+        const requests = data.requests || [];
+        renderClientRequests(requests);
+        updateBadge(requests.length);
+      })
+      .catch((err) => console.error("Error fetching client requests:", err));
+  }
 
+  function updateBadge(count) {
+    if (count > 0) {
+      badge.textContent = count;
+      badge.classList.remove("hidden");
+    } else {
+      badge.textContent = "";
+      badge.classList.add("hidden");
+    }
+  }
+
+  function renderClientRequests(requests) {
+    listEl.innerHTML = "";
+
+    if (!requests.length) {
+      const empty = document.createElement("p");
+      empty.className = "notif-empty";
+      empty.textContent = "No new requests.";
+      listEl.appendChild(empty);
+      return;
+    }
+
+    requests.forEach((req) => {
+      const item = document.createElement("div");
+      item.className = "notif-item";
+      item.innerHTML = `
+        <p><strong>${req.advisorName}</strong> wants to add you as a client.</p>
+        <div class="notif-actions">
+          <button class="btn small" data-action="accept" data-id="${req.id}">
+            Accept
+          </button>
+          <button class="btn ghost small" data-action="decline" data-id="${req.id}">
+            Decline
+          </button>
+        </div>
+      `;
+      listEl.appendChild(item);
+    });
+
+    // Delegated click handler for accept/decline
+    listEl.onclick = (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn) return;
+
+      const action = btn.getAttribute("data-action");
+      const id = btn.getAttribute("data-id");
+      respondToRequest(id, action);
+    };
+  }
+
+  function respondToRequest(id, decision) {
+    fetch("/api/client/requests/respond", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, decision }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.ok) {
+          alert(data.message || "Something went wrong.");
+          return;
+        }
+        // Refresh requests and badge after response
+        fetchClientRequests();
+      })
+      .catch((err) => {
+        console.error("Error responding to request:", err);
+        alert("Something went wrong. Please try again.");
+      });
+  }
+}

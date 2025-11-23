@@ -3,7 +3,7 @@ import io
 import base64
 import qrcode
 from functools import wraps
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from urllib.parse import urlparse, urljoin
 
 from flask import (
@@ -255,27 +255,36 @@ def api_advisor_clients():
     if session.get("role") != "Financial Advisor":
         return jsonify({"ok": False, "message": "Unauthorized"}), 403
 
-    # Advisor ID (from login)
-    advisor_id = ObjectId(session["user_id"])
+    advisor_id_str = session.get("user_id")
+    try:
+        advisor_obj_id = ObjectId(advisor_id_str)
+    except Exception:
+        return jsonify({"ok": False, "message": "Invalid advisor id"}), 400
 
-    # Get all clients linked to this advisor
-    client_entries = list(clients_col.find({"advisor_id": advisor_id}))
+    links = list(clients_col.find({"advisor_id": advisor_obj_id}))
 
     output = []
-    for c in client_entries:
-        user_doc = users_col.find_one({"_id": c["user_id"]})
+    for link in links:
+        user_doc = users_col.find_one({"_id": link.get("user_id")})
         if not user_doc:
             continue
 
         output.append({
-            "fullName": user_doc.get("fullName", "Unknown"),
+            "_id": str(link["_id"]),                 # client-link id (used in URLs + dropdown)
+            "user_id": str(user_doc["_id"]),        # actual user id
+            "full_name": user_doc.get("fullName", "Unknown"),
             "email": user_doc.get("email", ""),
-            "priority": c.get("priority", "Low"),
-            "status": "Active",
-            "created_at": str(c.get("created_at"))
+            "priority": link.get("priority", "low"),
+            "status": link.get("status", "Pending"),
+            "created_at": (
+                link.get("created_at").isoformat()
+                if link.get("created_at") else None
+            ),
         })
 
-    return jsonify({"ok": True, "clients": output})
+    # 🔥 return bare array so BOTH advisor_clients.js and advisor_summary.js work
+    return jsonify(output)
+
 
 
 @app.route("/advisor_priority")
@@ -294,16 +303,19 @@ def advisor_summary_page():
     return render_template("advisor_summary.html")
 
 
-from bson import ObjectId, errors as bson_errors
+from bson import ObjectId, errors as bson_errors  # keep this import
 
 @app.route("/api/advisor/set_priority", methods=["POST"])
+@login_required
 def advisor_set_priority():
-    data = request.get_json()
+    if session.get("role") != "Financial Advisor":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
 
+    data = request.get_json(silent=True) or {}
     client_id = data.get("client_id")
-    priority = data.get("priority")
+    priority = str(data.get("priority", "")).lower()
 
-    if not client_id or not priority:
+    if not client_id or priority not in ("low", "medium", "high"):
         return jsonify({"ok": False, "message": "Invalid data"}), 400
 
     try:
@@ -311,9 +323,15 @@ def advisor_set_priority():
     except bson_errors.InvalidId:
         return jsonify({"ok": False, "message": "Invalid client_id"}), 400
 
+    advisor_id_str = session.get("user_id")
     try:
-        result = db.clients.update_one(
-            {"_id": client_obj_id},
+        advisor_id = ObjectId(advisor_id_str)
+    except bson_errors.InvalidId:
+        return jsonify({"ok": False, "message": "Invalid advisor id"}), 400
+
+    try:
+        result = clients_col.update_one(
+            {"_id": client_obj_id, "advisor_id": advisor_id},
             {"$set": {"priority": priority}}
         )
 
@@ -325,8 +343,152 @@ def advisor_set_priority():
     except Exception as e:
         print("DB ERROR:", e)
         return jsonify({"ok": False, "message": "DB error"}), 500
+    
+    #add client route 
+    
+@app.route("/api/advisor/add_client", methods=["POST"])
+@login_required
+def api_advisor_add_client():
+    if session.get("role") != "Financial Advisor":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+
+    if not email:
+        return jsonify({"ok": False, "message": "Email is required"}), 400
+
+    # Find user by email
+    user = users_col.find_one({"email": email})
+    if not user:
+        return jsonify({"ok": False, "message": "No user with that email was found"}), 404
+
+    advisor_id_str = session.get("user_id")
+    try:
+        advisor_id = ObjectId(advisor_id_str)
+    except Exception:
+        return jsonify({"ok": False, "message": "Invalid advisor id"}), 400
+
+    # Avoid duplicates: one advisor-client link per user
+    existing = clients_col.find_one({
+        "advisor_id": advisor_id,
+        "user_id": user["_id"],
+    })
+    if existing:
+        return jsonify({"ok": False, "message": "This client is already on your list"}), 409
+
+    client_doc = {
+        "user_id": user["_id"],
+        "advisor_id": advisor_id,
+        "priority": "low",
+        "status": "Pending",
+        "notes": "",
+        "created_at": datetime.utcnow(),
+    }
+
+    result = clients_col.insert_one(client_doc)
+    client_doc["_id"] = result.inserted_id
+
+    client_payload = {
+        "_id": str(client_doc["_id"]),
+        "full_name": user.get("fullName", "Unknown"),
+        "email": user.get("email", ""),
+        "status": client_doc["status"],
+        "priority": client_doc["priority"],
+    }
+
+    return jsonify({
+        "ok": True,
+        "message": "Client added successfully",
+        "client": client_payload
+    }), 201
+
+#Delete client route
+@app.route("/api/advisor/clients/<client_id>", methods=["DELETE"])
+@login_required
+def api_advisor_delete_client(client_id):
+    if session.get("role") != "Financial Advisor":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    advisor_id_str = session.get("user_id")
+    try:
+        advisor_id = ObjectId(advisor_id_str)
+        client_obj_id = ObjectId(client_id)
+    except bson_errors.InvalidId:
+        return jsonify({"ok": False, "message": "Invalid id"}), 400
+
+    result = clients_col.delete_one({
+        "_id": client_obj_id,
+        "advisor_id": advisor_id
+    })
+
+    if result.deleted_count == 0:
+        return jsonify({"ok": False, "message": "Client not found"}), 404
+
+    return jsonify({"ok": True})
+
+# -----------------------------------------
+# CLIENT NOTIFICATIONS: ADVISOR REQUESTS
+# -----------------------------------------
+
+@app.route("/api/client/requests")
+@login_required
+def api_client_requests():
+    """Return pending advisor->client links for the logged-in user."""
+    user_id_str = session.get("user_id")
+    try:
+        user_obj_id = ObjectId(user_id_str)
+    except Exception:
+        return jsonify({"ok": False, "message": "Invalid user id"}), 400
+
+    links = list(clients_col.find({
+        "user_id": user_obj_id,
+        "status": "Pending",
+        "advisor_id": {"$ne": None}  # ignore the default row with advisor_id None
+    }))
+
+    requests_out = []
+    for link in links:
+        advisor = users_col.find_one({"_id": link["advisor_id"]})
+        advisor_name = advisor.get("fullName", "Unknown Advisor") if advisor else "Unknown Advisor"
+        requests_out.append({
+            "id": str(link["_id"]),          # client link id (NOT the user id)
+            "advisorName": advisor_name
+        })
+
+    return jsonify({"ok": True, "requests": requests_out})
 
 
+@app.route("/api/client/requests/respond", methods=["POST"])
+@login_required
+def api_client_requests_respond():
+    """Client accepts/declines an advisor link."""
+    data = request.get_json(silent=True) or {}
+    link_id = data.get("id")
+    decision = (data.get("decision") or "").lower()
+
+    if decision not in ("accept", "decline"):
+        return jsonify({"ok": False, "message": "Invalid decision"}), 400
+
+    user_id_str = session.get("user_id")
+    try:
+        user_obj_id = ObjectId(user_id_str)
+        link_obj_id = ObjectId(link_id)
+    except Exception:
+        return jsonify({"ok": False, "message": "Invalid id"}), 400
+
+    link = clients_col.find_one({"_id": link_obj_id, "user_id": user_obj_id})
+    if not link:
+        return jsonify({"ok": False, "message": "Request not found"}), 404
+
+    new_status = "Accepted" if decision == "accept" else "Declined"
+
+    clients_col.update_one(
+        {"_id": link_obj_id},
+        {"$set": {"status": new_status}}
+    )
+
+    return jsonify({"ok": True, "status": new_status})
 
 # ---------------------------
 # BANK / PLAID API ENDPOINTS
@@ -487,6 +649,7 @@ def api_register():
     clients_col.insert_one({
         "user_id": result.inserted_id,
         "advisor_id": None,
+        "status": "Pending",
         "priority": "Low",
         "notes": "",
         "created_at": datetime.utcnow()
@@ -717,21 +880,143 @@ def api_advisor_summary():
     if session.get("role") != "Financial Advisor":
         return jsonify({"ok": False, "message": "Unauthorized"}), 403
 
-    client_id = request.args.get("client")
+    client_link_id = request.args.get("client")  # clients_col _id
     time_range = request.args.get("range", "month")
 
-    example_data = {
-        "labels": ["Week 1", "Week 2", "Week 3", "Week 4"],
-        "income": [500, 700, 650, 900],
-        "expenses": [400, 500, 550, 700],
-        "categoryBreakdown": {
-            "Food": 320,
-            "Bills": 450,
-            "Shopping": 210,
-            "Entertainment": 140
-        }
+    if not client_link_id:
+        return jsonify({"ok": False, "message": "Missing client id"}), 400
+
+    advisor_id_str = session.get("user_id")
+    try:
+        advisor_obj_id = ObjectId(advisor_id_str)
+        client_link_obj_id = ObjectId(client_link_id)
+    except Exception:
+        return jsonify({"ok": False, "message": "Invalid id"}), 400
+
+    # Make sure this client belongs to this advisor
+    link = clients_col.find_one({
+        "_id": client_link_obj_id,
+        "advisor_id": advisor_obj_id,
+    })
+    if not link:
+        return jsonify(
+            {"ok": False, "message": "Client not found for this advisor"}
+        ), 404
+
+    client_user_obj_id = link.get("user_id")
+    if not client_user_obj_id:
+        return jsonify({"ok": False, "message": "Client user missing"}), 400
+
+    client_user_id_str = str(client_user_obj_id)
+
+    # Time window based on range
+    days_map = {"month": 30, "quarter": 90, "year": 365}
+    days = days_map.get(time_range, 30)
+    cutoff = datetime.utcnow().date() - timedelta(days=days)
+
+    # PLAID ONLY
+    bank_doc = bank_accounts_col.find_one({"user_id": client_user_id_str})
+    if not bank_doc or not bank_doc.get("recent_transactions"):
+        # No Plaid data at all -> tell frontend to show "No data"
+        return jsonify({
+            "ok": True,
+            "hasData": False,
+            "labels": [],
+            "income": [],
+            "expenses": [],
+            "categoryBreakdown": {},
+            "transactions": [],
+        })
+
+    txs = bank_doc.get("recent_transactions", [])
+    summary = _build_plaid_summary(txs, cutoff)
+
+    # If, after filtering by date, nothing remains -> No Data
+    if not summary["labels"]:
+        summary.update({
+            "ok": True,
+            "hasData": False,
+        })
+    else:
+        summary.update({
+            "ok": True,
+            "hasData": True,
+        })
+
+    return jsonify(summary)
+
+
+def _build_plaid_summary(txs, cutoff_date):
+    """
+    Build summary from Plaid transactions only.
+    txs: list of dicts with keys: date, name, category, amount, transaction_id, ...
+    cutoff_date: date object; only include txs >= cutoff_date.
+    """
+    filtered = []
+
+    # Filter by date
+    for tx in txs:
+        raw_date = tx.get("date")
+        if isinstance(raw_date, datetime):
+            d = raw_date.date()
+        else:
+            try:
+                d = datetime.fromisoformat(str(raw_date)).date()
+            except Exception:
+                try:
+                    d = datetime.strptime(str(raw_date), "%Y-%m-%d").date()
+                except Exception:
+                    continue
+
+        if d < cutoff_date:
+            continue
+
+        filtered.append((d, tx))
+
+    # Sort ascending by date
+    filtered.sort(key=lambda x: x[0])
+
+    income_by_day = {}
+    expense_by_day = {}
+    categories = {}
+    tx_output = []
+
+    for d, tx in filtered:
+        amt_raw = float(tx.get("amount") or 0)
+        name = tx.get("name", "")
+        cat = tx.get("category") or "Other"
+
+        # Use your existing classifier to decide income vs expense
+        is_income = _classify_direction(name, cat)
+        signed = amt_raw if is_income else -amt_raw
+        date_key = d.isoformat()
+
+        if signed >= 0:
+            income_by_day[date_key] = income_by_day.get(date_key, 0.0) + signed
+        else:
+            val = abs(signed)
+            expense_by_day[date_key] = expense_by_day.get(date_key, 0.0) + val
+            categories[cat] = categories.get(cat, 0.0) + val
+
+        tx_output.append({
+            "date": date_key,
+            "name": name,
+            "category": cat,
+            "amount": signed,
+            "transaction_id": tx.get("transaction_id"),
+        })
+
+    labels = sorted(set(list(income_by_day.keys()) + list(expense_by_day.keys())))
+    income_list = [round(income_by_day.get(d, 0.0), 2) for d in labels]
+    expense_list = [round(expense_by_day.get(d, 0.0), 2) for d in labels]
+
+    return {
+        "labels": labels,
+        "income": income_list,
+        "expenses": expense_list,
+        "categoryBreakdown": {k: round(v, 2) for k, v in categories.items()},
+        "transactions": tx_output,
     }
-    return jsonify(example_data)
 # ---------------------------
 # FORGOT PASSWORD
 # ---------------------------

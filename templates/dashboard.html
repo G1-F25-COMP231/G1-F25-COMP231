@@ -48,8 +48,19 @@
 
     <!-- Top Bar -->
     <header class="topbar">
-      <button class="icon-btn" id="toggleSidebar">☰</button>
-      <div class="search"><input type="text" placeholder="Search transactions…" /></div>
+      <div class="topbar-left">
+        <button class="icon-btn" id="toggleSidebar">☰</button>
+
+        <!-- NOTIFICATION BELL -->
+        <button class="icon-btn notif-btn" id="notificationsBtn">
+          🔔
+          <span id="notificationsBadge" class="notif-badge hidden"></span>
+        </button>
+      </div>
+
+      <div class="search">
+        <input type="text" placeholder="Search transactions…" />
+      </div>
     </header>
 
     <!-- PAGE CONTENT -->
@@ -94,23 +105,22 @@
           <div class="bars" id="barChart"></div>
         </div>
 
-              <div class="card chart">
-  <div class="card__title" style="display:flex; justify-content:space-between; align-items:center;">
-    <span>Category Spend</span>
+        <div class="card chart">
+          <div class="card__title" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Category Spend</span>
 
-    <select id="pieFilter"
-      style="padding:6px 10px; border-radius:8px; background:#0b132b; color:white; border:1px solid #1b263b;">
-      <option value="all">All</option>
-      <option value="thisMonth">This Month</option>
-      <option value="lastMonth">Last Month</option>
-      <option value="income">Income Only</option>
-      <option value="expense">Expense Only</option>
-    </select>
-  </div>
+            <select id="pieFilter"
+              style="padding:6px 10px; border-radius:8px; background:#0b132b; color:white; border:1px solid #1b263b;">
+              <option value="all">All</option>
+              <option value="thisMonth">This Month</option>
+              <option value="lastMonth">Last Month</option>
+              <option value="income">Income Only</option>
+              <option value="expense">Expense Only</option>
+            </select>
+          </div>
 
-  <canvas id="dashboardCategoryChart"></canvas>
-</div>
-
+          <canvas id="dashboardCategoryChart"></canvas>
+        </div>
 
       <!-- ROW 3 — AI + Recent Transactions -->
       <div class="grid grid-2">
@@ -162,6 +172,17 @@
     <input type="text" id="chatInput" placeholder="Ask BudgetMind AI something…" required />
     <button type="submit" class="btn">Send</button>
   </form>
+</div>
+
+<!-- NOTIFICATIONS PANEL -->
+<div id="notificationsPanel" class="notif-panel hidden">
+  <div class="notif-header">
+    <span>Notifications</span>
+    <button id="closeNotifications" class="icon-btn small">&times;</button>
+  </div>
+  <div id="notificationsList" class="notif-list">
+    <p class="notif-empty">No new requests.</p>
+  </div>
 </div>
 
 <script src="static/bank_connect.js"></script>

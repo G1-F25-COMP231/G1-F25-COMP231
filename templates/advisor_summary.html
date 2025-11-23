@@ -4,9 +4,21 @@
 
 <h1 class="page-title">Client Financial Summary</h1>
 
+<!-- TOP CONTROLS: client + time range -->
 <div class="summary-controls">
-  <label>Time Range:</label>
-  <select id="timeFilter" onchange="reloadSummary()">
+  <label for="clientSelect">Client:</label>
+  <select id="clientSelect">
+    <option value="">Select a client…</option>
+  </select>
+
+  <button id="loadSummaryBtn" class="btn" style="margin-left:8px;">
+    Load Summary
+  </button>
+
+  <div style="flex:1;"></div>
+
+  <label for="timeFilter">Time Range:</label>
+  <select id="timeFilter">
     <option value="month">This Month</option>
     <option value="quarter">This Quarter</option>
     <option value="year">This Year</option>
@@ -18,18 +30,48 @@
   <!-- LINE CHART -->
   <div class="summary-card">
     <h2>Income vs Expenses</h2>
+    <div id="lineChartNoData" style="display:none; color:#b8c4d1; text-align:center; padding:40px 0;">
+      No data available.
+    </div>
     <canvas id="lineChart"></canvas>
   </div>
 
   <!-- PIE CHART -->
   <div class="summary-card">
     <h2>Category Breakdown</h2>
+    <div id="pieChartNoData" style="display:none; color:#b8c4d1; text-align:center; padding:40px 0;">
+      No data available.
+    </div>
     <canvas id="pieChart"></canvas>
   </div>
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/static/advisor_summary.js"></script>
+<!-- TRANSACTIONS LIST -->
+<div class="summary-card" style="margin-top:24px;">
+  <h2>Client Transactions</h2>
+  <table class="advisor-table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Merchant</th>
+        <th>Category</th>
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody id="clientTxTableBody">
+      <tr>
+        <td colspan="4" style="text-align:center; color:#b8c4d1;">
+          Select a client to view transactions.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
 
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/static/advisor_summary.js"></script>
 {% endblock %}

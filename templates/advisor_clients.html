@@ -5,6 +5,12 @@
 <h1 class="page-title">Client List</h1>
 
 <div class="advisor-table-wrapper">
+
+  <!-- Top bar with Add Client button -->
+  <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+    <button id="addClientBtn" class="btn">Add Client</button>
+  </div>
+
   <table class="advisor-table">
     <thead>
       <tr>
@@ -19,49 +25,71 @@
   </table>
 </div>
 
-<script>
-console.log("LOADED PAGE: firing loadClients()");
+<!-- Add Client Modal -->
+<div
+  id="addClientModal"
+  style="
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.6);
+    z-index:1000;
+    align-items:center;
+    justify-content:center;
+  "
+>
+  <div
+    class="priority-card"
+    style="max-width:420px; width:90%; position:relative;"
+  >
+    <h2 style="margin-bottom:10px;">Add Client</h2>
+    <p class="priority-desc" style="margin-bottom:15px;">
+      Enter the email of an existing BudgetMind AI user to add them to your client list.
+    </p>
 
-async function loadClients() {
-    console.log("Fetching /api/advisor/clients...");
-    const res = await fetch("/api/advisor/clients");
-    const data = await res.json();
-    console.log("API response:", data);
+    <form id="addClientForm">
+      <div style="margin-bottom:12px;">
+        <label for="addClientEmail" style="display:block; margin-bottom:6px;">
+          Client Email
+        </label>
+        <input
+          type="email"
+          id="addClientEmail"
+          required
+          style="
+            width:100%;
+            padding:8px 10px;
+            border-radius:8px;
+            border:1px solid rgba(255,255,255,0.15);
+            background:#0f1622;
+            color:#fff;
+          "
+          placeholder="client@example.com"
+        />
+      </div>
 
-    const tbody = document.getElementById("clientsTableBody");
-    tbody.innerHTML = "";
+      <p
+        id="addClientMessage"
+        style="min-height:18px; font-size:13px; margin-bottom:12px;"
+      ></p>
 
-    data.clients.forEach(c => {
-        const row = document.createElement("tr");
-
-        row.innerHTML = `
-    <td>${c.fullName}</td>
-    <td>${c.email}</td>
-    <td>${c.status}</td>
-    <td>${c.priority}</td>
-    <td>
-        <button class="btn">View</button>
-    </td>
-    <td>
-        <button class="btn" onclick="selectClient('${c._id}')">
-            Priority
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button
+          type="button"
+          id="cancelAddClientBtn"
+          class="btn"
+          style="background:transparent; border:1px solid rgba(255,255,255,0.25); color:#e2e6ed;"
+        >
+          Cancel
         </button>
-    </td>
-`;
+        <button type="submit" class="btn">
+          Submit
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
 
-
-
-        tbody.appendChild(row);
-    });
-}
-
-function selectClient(id) {
-    console.log("Selected Client Saved:", id);
-    localStorage.setItem("selectedClientId", id);
-    window.location.href = "/advisor_priority";
-}
-
-document.addEventListener("DOMContentLoaded", loadClients);
-</script>
+<script src="/static/advisor_clients.js"></script>
 
 {% endblock %}
