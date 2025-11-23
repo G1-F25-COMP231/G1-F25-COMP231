@@ -232,6 +232,38 @@ def register_page():
 def dashboard():
     return render_template("dashboard.html")
 
+@app.route("/settings.html")
+@login_required
+def settings_page():
+    return render_template("settings.html")
+
+@app.route("/transaction-details.html")
+@login_required
+def transaction_details_page():
+    return render_template("transaction-details.html")
+
+@app.route("/edit-profile.html")
+@login_required
+def edit_profile_page():
+    return render_template("edit_profile.html")
+
+@app.route("/ai-insights")
+@login_required
+def ai_insights_page():
+    return render_template("ai_insights.html")
+
+@app.route("/budget-limit")
+@login_required
+def budget_limit_page():
+    return render_template("budget_limit.html")
+
+# Add-entry page (GET)
+@app.route("/entry")
+@login_required
+def entry_page():
+    return render_template("entry.html")
+
+
 
 @app.route("/advisor_dashboard")
 @login_required
