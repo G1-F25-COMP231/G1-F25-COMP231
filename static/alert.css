@@ -1,0 +1,120 @@
+:root {
+  --alert-width: 360px;
+  --alert-gap: 12px;
+  --alert-radius: 10px;
+  --alert-shadow: 0 6px 18px rgba(23, 23, 23, 0.12);
+  --alert-font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+  --alert-bg: #fff;
+  --alert-text: #111;
+  --alert-muted: #5b6070;
+  --alert-timing: 300ms ease;
+}
+
+.demo-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.alerts-root {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: var(--alert-width);
+  display: flex;
+  flex-direction: column;
+  gap: var(--alert-gap);
+  z-index: 99999;
+  pointer-events: none;
+  font-family: var(--alert-font-sans);
+  color: var(--alert-text);
+  padding: 8px;
+}
+
+.alert {
+  pointer-events: auto;
+  display: flex;
+  gap: 12px;
+  background: var(--alert-bg);
+  border-radius: var(--alert-radius);
+  padding: 12px;
+  box-shadow: var(--shadow);
+  border-left: 6px solid transparent;
+  transform: translateY(-8px);
+  opacity: 0;
+  transition: all var(--alert-timing);
+  position: relative;
+}
+
+.alert.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.alert .icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+}
+
+.alert .content {
+  flex: 1;
+}
+
+.alert .title {
+  font-weight: bold;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.alert .msg {
+  font-size: 13px;
+  color: var(--alert-muted);
+}
+
+.alert .close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.alert .progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  width: 100%;
+}
+
+.alert .progress i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform linear;
+}
+
+/* alert types */
+.alert--success { border-left-color: #2ecc71; }
+.alert--info { border-left-color: #3498db; }
+.alert--warning { border-left-color: #f39c12; }
+.alert--danger { border-left-color: #e74c3c; }
+
+.alert--success .icon svg { color: #2ecc71; }
+.alert--info .icon svg { color: #3498db; }
+.alert--warning .icon svg { color: #f39c12; }
+.alert--danger .icon svg { color: #e74c3c; }
+
+@media (max-width: 420px) {
+  :root { --alert-width: calc(100% - 32px); }
+  .alerts-root {
+    left: 16px;
+    right: 16px;
+  }
+}

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Alert Component Demo</title>
+  <link rel="stylesheet" href="static/alert.css" />
+</head>
+<body>
+
+  <h2>This is the Alert demo</h2>
+  <p>Click buttons to show alerts.</p>
+  <div class="demo-buttons">
+    <button onclick="Alert.notify('success','Saved!','Your changes were saved.',3000)">Success</button>
+    <button onclick="Alert.notify('info','Heads up','This is some info.',5000)">Info</button>
+    <button onclick="Alert.notify('warning','Be careful','This might cause issues.',7000)">Warning</button>
+    <button onclick="Alert.notify('danger','Error','Something went wrong.',0)">Danger (no auto dismiss)</button>
+  </div>
+
+  <!-- Alert Mount Point -->
+  <div class="alerts-root" id="alerts-root" aria-live="polite"></div>
+
+  <script src="static/alert.js"></script>
+</body>
+</html>
+
+<!-- usage -->
+{% comment %} 
+  <link rel="stylesheet" href="static/alert.css" />
+  <div class="alerts-root" id="alerts-root" aria-live="polite"></div>
+
+  <script src="static/alert.js"></script>
+
+  in js:
+  Alert.notify('success','Saved!','Your changes were saved.',3000)
+{% endcomment %}
