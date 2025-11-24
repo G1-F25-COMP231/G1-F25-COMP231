@@ -184,6 +184,40 @@ def _classify_direction(name: str, category: str | None) -> bool:
     income_keywords = ["payroll", "deposit", "credit", "refund", "interest", "intrst"]
     return any(k in label for k in income_keywords)
 
+def _get_advisor_client_link(client_link_id: str, require_accepted: bool = True):
+    """
+    Look up the clients_col document (advisor <-> client link) for the
+    currently logged-in advisor.
+
+    If require_accepted is True, we only return links where the client
+    has granted permission (status == 'Accepted').
+
+    Returns:
+        (link_doc, None) on success
+        (None, (response, http_status)) on error
+    """
+    if session.get("role") != "Financial Advisor":
+        return None, (jsonify({"ok": False, "message": "Unauthorized"}), 403)
+
+    advisor_id_str = session.get("user_id")
+    try:
+        advisor_id = ObjectId(advisor_id_str)
+        link_obj_id = ObjectId(client_link_id)
+    except Exception:
+        return None, (jsonify({"ok": False, "message": "Invalid id"}), 400)
+
+    query = {"_id": link_obj_id, "advisor_id": advisor_id}
+    if require_accepted:
+        # Only allow if the client has accepted the advisor’s request
+        query["status"] = "Accepted"
+
+    link = clients_col.find_one(query)
+    if not link:
+        msg = "Client not found or permission not granted" if require_accepted else "Client not found"
+        return None, (jsonify({"ok": False, "message": msg}), 404)
+
+    return link, None
+
 
 def _simplify_transactions(tx_payload: dict):
     result = []
@@ -348,23 +382,13 @@ def api_check_overspending():
     if not client_link_id:
         return jsonify({"ok": False, "message": "Missing client id"}), 400
 
-    advisor_id = ObjectId(session["user_id"])
-
-    try:
-        link_obj_id = ObjectId(client_link_id)
-    except:
-        return jsonify({"ok": False, "message": "Invalid client id"}), 400
-
-    # Confirm advisor owns this client
-    link = clients_col.find_one({
-        "_id": link_obj_id,
-        "advisor_id": advisor_id
-    })
-
-    if not link:
-        return jsonify({"ok": False, "message": "Client not found"}), 404
+    # Make sure this advisor *owns* the link AND the client has granted permission
+    link, error = _get_advisor_client_link(client_link_id, require_accepted=True)
+    if error:
+        return error
 
     client_user_id = str(link["user_id"])
+    advisor_id = ObjectId(session["user_id"])
 
     # Time filter
     now = datetime.utcnow().date()
@@ -384,13 +408,12 @@ def api_check_overspending():
     total_spent = 0.0
 
     for tx in txs:
-        # parse date
         d_str = tx.get("date")
         try:
             d = datetime.fromisoformat(d_str).date()
             if d < cutoff:
                 continue
-        except:
+        except Exception:
             continue
 
         amt = float(tx.get("amount", 0))
@@ -427,22 +450,17 @@ def api_check_overspending():
 
 
 
+
 @app.route("/api/advisor/alert_summary/<client_link_id>")
 @login_required
 def api_alert_summary(client_link_id):
     if session.get("role") != "Financial Advisor":
         return jsonify({"ok": False, "message": "Unauthorized"}), 403
 
-    advisor_id = ObjectId(session["user_id"])
-
-    try:
-        link_obj = ObjectId(client_link_id)
-    except:
-        return jsonify({"ok": False, "message": "Invalid id"}), 400
-
-    link = clients_col.find_one({"_id": link_obj, "advisor_id": advisor_id})
-    if not link:
-        return jsonify({"ok": False, "message": "Client not found"}), 404
+    # Ensure advisor owns this client AND permission is granted
+    link, error = _get_advisor_client_link(client_link_id, require_accepted=True)
+    if error:
+        return error
 
     client_user_id = str(link["user_id"])
 
@@ -460,6 +478,7 @@ def api_alert_summary(client_link_id):
         })
 
     return jsonify({"ok": True, "alerts": formatted})
+
 
 
 
@@ -573,13 +592,19 @@ def api_advisor_add_client():
     if existing:
         return jsonify({"ok": False, "message": "This client is already on your list"}), 409
 
+    now = datetime.utcnow()
+
+    # This row *is* the permission request:
+    # status = "Pending"  → waiting for client to accept/decline
     client_doc = {
         "user_id": user["_id"],
         "advisor_id": advisor_id,
         "priority": "low",
         "status": "Pending",
         "notes": "",
-        "created_at": datetime.utcnow(),
+        "created_at": now,
+        "permission_requested_at": now,
+        "permission_updated_at": None,
     }
 
     result = clients_col.insert_one(client_doc)
@@ -595,9 +620,10 @@ def api_advisor_add_client():
 
     return jsonify({
         "ok": True,
-        "message": "Client added successfully",
+        "message": "Permission request sent to client",
         "client": client_payload
     }), 201
+
 
 #Delete client route
 @app.route("/api/advisor/clients/<client_id>", methods=["DELETE"])
@@ -658,7 +684,7 @@ def api_client_requests():
 @app.route("/api/client/requests/respond", methods=["POST"])
 @login_required
 def api_client_requests_respond():
-    """Client accepts/declines an advisor link."""
+    """Client accepts/declines an advisor link (permission request)."""
     data = request.get_json(silent=True) or {}
     link_id = data.get("id")
     decision = (data.get("decision") or "").lower()
@@ -673,6 +699,7 @@ def api_client_requests_respond():
     except Exception:
         return jsonify({"ok": False, "message": "Invalid id"}), 400
 
+    # Ensure this link really belongs to the logged-in client
     link = clients_col.find_one({"_id": link_obj_id, "user_id": user_obj_id})
     if not link:
         return jsonify({"ok": False, "message": "Request not found"}), 404
@@ -681,10 +708,14 @@ def api_client_requests_respond():
 
     clients_col.update_one(
         {"_id": link_obj_id},
-        {"$set": {"status": new_status}}
+        {"$set": {
+            "status": new_status,
+            "permission_updated_at": datetime.utcnow()
+        }}
     )
 
     return jsonify({"ok": True, "status": new_status})
+
 
 # ---------------------------
 # BANK / PLAID API ENDPOINTS
@@ -1082,22 +1113,10 @@ def api_advisor_summary():
     if not client_link_id:
         return jsonify({"ok": False, "message": "Missing client id"}), 400
 
-    advisor_id_str = session.get("user_id")
-    try:
-        advisor_obj_id = ObjectId(advisor_id_str)
-        client_link_obj_id = ObjectId(client_link_id)
-    except Exception:
-        return jsonify({"ok": False, "message": "Invalid id"}), 400
-
-    # Make sure this client belongs to this advisor
-    link = clients_col.find_one({
-        "_id": client_link_obj_id,
-        "advisor_id": advisor_obj_id,
-    })
-    if not link:
-        return jsonify(
-            {"ok": False, "message": "Client not found for this advisor"}
-        ), 404
+    # Must belong to this advisor AND be Accepted
+    link, error = _get_advisor_client_link(client_link_id, require_accepted=True)
+    if error:
+        return error
 
     client_user_obj_id = link.get("user_id")
     if not client_user_obj_id:
@@ -1113,7 +1132,6 @@ def api_advisor_summary():
     # PLAID ONLY
     bank_doc = bank_accounts_col.find_one({"user_id": client_user_id_str})
     if not bank_doc or not bank_doc.get("recent_transactions"):
-        # No Plaid data at all -> tell frontend to show "No data"
         return jsonify({
             "ok": True,
             "hasData": False,
@@ -1127,7 +1145,6 @@ def api_advisor_summary():
     txs = bank_doc.get("recent_transactions", [])
     summary = _build_plaid_summary(txs, cutoff)
 
-    # If, after filtering by date, nothing remains -> No Data
     if not summary["labels"]:
         summary.update({
             "ok": True,
@@ -1140,6 +1157,7 @@ def api_advisor_summary():
         })
 
     return jsonify(summary)
+
 
 
 def _build_plaid_summary(txs, cutoff_date):
