@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advisor Settings — BudgetMind AI</title>
+  <link rel="stylesheet" href="advisor-settings.css">
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand__logo">💠</div>
+        <div class="brand__name">BudgetMind AI</div>
+      </div>
+
+      <nav class="nav">
+        <a href="dashboard.html" class="nav__item">🏠 Dashboard</a>
+        <a href="clients.html" class="nav__item">👥 Clients</a>
+        <a href="advisor-settings.html" class="nav__item active">⚙️ Advisor Settings</a>
+        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN AREA -->
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn" id="toggleSidebar">☰</button>
+        <h1 class="page-title">Advisor Settings</h1>
+      </header>
+
+      <section class="content">
+
+        <!-- Select Client -->
+        <div class="card">
+          <h2 class="card__title">Select Client</h2>
+          <p class="card__subtitle">Choose a client to configure their budgets and dashboard.</p>
+
+          <select id="clientSelect" class="select-input">
+            <option value="">Select a client...</option>
+            <option value="1">Daniel Saragil</option>
+            <option value="2">Luca Distefano</option>
+            <option value="3">Peter Christe</option>
+            <option value="4">Amira Khan</option>
+          </select>
+        </div>
+
+        <!-- Budget Settings -->
+        <div class="card">
+          <h2 class="card__title">Client Budget Configuration</h2>
+          <p class="card__subtitle">Set monthly spending limits for the selected client.</p>
+
+          <div class="form">
+            <label>Total Monthly Budget ($)</label>
+            <input type="number" id="totalBudget" placeholder="e.g. 3200">
+
+            <div class="grid">
+              <div>
+                <label>Groceries</label>
+                <input type="number" id="groceries" placeholder="e.g. 500">
+              </div>
+              <div>
+                <label>Dining</label>
+                <input type="number" id="dining" placeholder="e.g. 300">
+              </div>
+              <div>
+                <label>Transport</label>
+                <input type="number" id="transport" placeholder="e.g. 200">
+              </div>
+              <div>
+                <label>Bills</label>
+                <input type="number" id="bills" placeholder="e.g. 450">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dashboard Customization -->
+        <div class="card">
+          <h2 class="card__title">Dashboard Customization</h2>
+          <p class="card__subtitle">Control what this client sees on their dashboard.</p>
+
+          <div class="toggles">
+            <label><input type="checkbox" checked> Spending Overview</label>
+            <label><input type="checkbox" checked> Category Breakdown</label>
+            <label><input type="checkbox" checked> Savings Progress</label>
+            <label><input type="checkbox"> AI Insights</label>
+            <label><input type="checkbox"> Upcoming Bills</label>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="card">
+          <h2 class="card__title">Advisor Notes</h2>
+          <p class="card__subtitle">Write notes or reminders for this client's financial planning.</p>
+
+          <textarea id="advisorNotes" class="notes-input" placeholder="Enter advisor notes..."></textarea>
+        </div>
+
+        <!-- Save Button -->
+        <button class="btn" id="saveBtn">💾 Save Client Settings</button>
+
+      </section>
+
+      <footer class="footer">
+        <a href="#">About</a> · <a href="#">Contact Support</a> · <a href="#">Privacy</a>
+      </footer>
+    </main>
+
+  </div>
+
+  <script src="advisor-settings.js"></script>
+</body>
+</html>
