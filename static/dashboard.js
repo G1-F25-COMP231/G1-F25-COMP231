@@ -590,32 +590,51 @@ function initClientNotifications() {
 
   // Close if clicking outside
   document.addEventListener("click", (e) => {
-    if (!panel.classList.contains("hidden")) {
-      const clickedInsidePanel = panel.contains(e.target);
-      const clickedBell = btn.contains(e.target);
-      if (!clickedInsidePanel && !clickedBell) {
-        panel.classList.add("hidden");
-      }
+    if (!panel.classList.contains("hidden")) return;
+    const clickedInsidePanel = panel.contains(e.target);
+    const clickedBell = btn.contains(e.target);
+    if (!clickedInsidePanel && !clickedBell) {
+      panel.classList.add("hidden");
     }
   });
 
   // Load immediately + poll every 30s
-  fetchClientRequests();
-  setInterval(fetchClientRequests, 30000);
+  fetchAllNotifications();
+  setInterval(fetchAllNotifications, 30000);
 
-  function fetchClientRequests() {
-    fetch("/api/client/requests")
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.ok) {
-          console.warn("client requests not ok:", data);
-          return;
-        }
-        const requests = data.requests || [];
-        renderClientRequests(requests);
-        updateBadge(requests.length);
+  // ---- NEW: fetch BOTH advisor-link requests and budget-limit requests ----
+  function fetchAllNotifications() {
+    Promise.all([
+      fetch("/api/client/requests")
+        .then((res) => res.json())
+        .catch((err) => {
+          console.error("Error fetching client requests:", err);
+          return null;
+        }),
+      fetch("/api/client/budget_limit_requests")
+        .then((res) => res.json())
+        .catch((err) => {
+          console.error("Error fetching budget limit requests:", err);
+          return null;
+        }),
+    ])
+      .then(([linkData, budgetData]) => {
+        const advisorRequests =
+          linkData && linkData.ok && Array.isArray(linkData.requests)
+            ? linkData.requests
+            : [];
+
+        const budgetRequests =
+          budgetData && budgetData.ok && Array.isArray(budgetData.requests)
+            ? budgetData.requests
+            : [];
+
+        renderNotifications(advisorRequests, budgetRequests);
+        updateBadge(advisorRequests.length + budgetRequests.length);
       })
-      .catch((err) => console.error("Error fetching client requests:", err));
+      .catch((err) => {
+        console.error("Error fetching notifications:", err);
+      });
   }
 
   function updateBadge(count) {
@@ -628,10 +647,12 @@ function initClientNotifications() {
     }
   }
 
-  function renderClientRequests(requests) {
+  // Renders BOTH types of notifications into the same panel
+  function renderNotifications(advisorRequests, budgetRequests) {
     listEl.innerHTML = "";
 
-    if (!requests.length) {
+    const total = advisorRequests.length + budgetRequests.length;
+    if (!total) {
       const empty = document.createElement("p");
       empty.className = "notif-empty";
       empty.textContent = "No new requests.";
@@ -639,16 +660,23 @@ function initClientNotifications() {
       return;
     }
 
-    requests.forEach((req) => {
+    // Advisor wants to add you as a client
+    advisorRequests.forEach((req) => {
       const item = document.createElement("div");
       item.className = "notif-item";
       item.innerHTML = `
         <p><strong>${req.advisorName}</strong> wants to add you as a client.</p>
         <div class="notif-actions">
-          <button class="btn small" data-action="accept" data-id="${req.id}">
+          <button class="btn small"
+                  data-kind="link"
+                  data-action="accept"
+                  data-id="${req.id}">
             Accept
           </button>
-          <button class="btn ghost small" data-action="decline" data-id="${req.id}">
+          <button class="btn ghost small"
+                  data-kind="link"
+                  data-action="decline"
+                  data-id="${req.id}">
             Decline
           </button>
         </div>
@@ -656,18 +684,56 @@ function initClientNotifications() {
       listEl.appendChild(item);
     });
 
-    // Delegated click handler for accept/decline
-    listEl.onclick = (e) => {
-      const btn = e.target.closest("button[data-action]");
-      if (!btn) return;
+    // Advisor wants permission to edit your budget limit
+    budgetRequests.forEach((req) => {
+      const currentLimitNum = Number(req.currentLimit || 0);
+      const currentLimitText = `$${currentLimitNum.toFixed(2)}`;
 
-      const action = btn.getAttribute("data-action");
-      const id = btn.getAttribute("data-id");
-      respondToRequest(id, action);
+      const item = document.createElement("div");
+      item.className = "notif-item";
+      item.innerHTML = `
+        <p>
+          <strong>${req.advisorName}</strong> wants permission to edit your budget limit
+          (current: <b>${currentLimitText}</b>).
+        </p>
+        <div class="notif-actions">
+          <button class="btn small"
+                  data-kind="budget"
+                  data-action="accept"
+                  data-id="${req.id}">
+            Allow
+          </button>
+          <button class="btn ghost small"
+                  data-kind="budget"
+                  data-action="decline"
+                  data-id="${req.id}">
+            Deny
+          </button>
+        </div>
+      `;
+      listEl.appendChild(item);
+    });
+
+    // Delegated click handler for ALL buttons
+    listEl.onclick = (e) => {
+      const btnEl = e.target.closest("button[data-action][data-kind]");
+      if (!btnEl) return;
+
+      const kind = btnEl.getAttribute("data-kind");      // "link" or "budget"
+      const decision = btnEl.getAttribute("data-action"); // "accept" / "decline"
+      const id = btnEl.getAttribute("data-id");
+
+      if (!id || !decision) return;
+
+      if (kind === "link") {
+        respondToAdvisorLinkRequest(id, decision);
+      } else if (kind === "budget") {
+        respondToBudgetLimitRequest(id, decision);
+      }
     };
   }
 
-  function respondToRequest(id, decision) {
+  function respondToAdvisorLinkRequest(id, decision) {
     fetch("/api/client/requests/respond", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -679,11 +745,30 @@ function initClientNotifications() {
           alert(data.message || "Something went wrong.");
           return;
         }
-        // Refresh requests and badge after response
-        fetchClientRequests();
+        fetchAllNotifications();
       })
       .catch((err) => {
-        console.error("Error responding to request:", err);
+        console.error("Error responding to advisor request:", err);
+        alert("Something went wrong. Please try again.");
+      });
+  }
+
+  function respondToBudgetLimitRequest(id, decision) {
+    fetch("/api/client/budget_limit_requests/respond", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, decision }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.ok) {
+          alert(data.message || "Something went wrong.");
+          return;
+        }
+        fetchAllNotifications();
+      })
+      .catch((err) => {
+        console.error("Error responding to budget limit request:", err);
         alert("Something went wrong. Please try again.");
       });
   }

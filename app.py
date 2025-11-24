@@ -462,11 +462,19 @@ def api_alert_summary(client_link_id):
     if error:
         return error
 
-    client_user_id = str(link["user_id"])
+    client_user_obj_id = link["user_id"]
+    client_user_id = str(client_user_obj_id)
 
-    alerts = list(db.alerts.find(
-        {"client_id": client_user_id}
-    ).sort("timestamp", -1))
+    # 🔹 get the *current* budget limit from the user record
+    user_doc = users_col.find_one({"_id": client_user_obj_id}) or {}
+    try:
+        current_limit = float(user_doc.get("spending_limit", DEFAULT_SPENDING_LIMIT))
+    except (TypeError, ValueError):
+        current_limit = DEFAULT_SPENDING_LIMIT
+
+    alerts = list(
+        db.alerts.find({"client_id": client_user_id}).sort("timestamp", -1)
+    )
 
     formatted = []
     for a in alerts:
@@ -474,12 +482,117 @@ def api_alert_summary(client_link_id):
             "timestamp": a["timestamp"].isoformat(),
             "type": a.get("type", "overspending"),
             "spent": a.get("amount_spent", 0),
-            "limit": a.get("budget_limit", 0)
+            # 🔹 always show the latest limit instead of the historical one
+            "limit": current_limit,
         })
 
     return jsonify({"ok": True, "alerts": formatted})
 
 
+
+@app.route("/api/advisor/budget_edit_status/<client_link_id>")
+@login_required
+def api_budget_edit_status(client_link_id):
+    """
+    Advisor checks whether they can edit a client’s budget limit.
+    Status:
+      - 'no_client_permission'  -> client hasn’t accepted advisor at all
+      - 'none'                  -> client accepted advisor, but no budget-edit request yet
+      - 'pending'               -> request sent, waiting on client
+      - 'granted'               -> client allowed budget edits
+      - 'denied'                -> client explicitly denied
+    """
+    if session.get("role") != "Financial Advisor":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    link, error = _get_advisor_client_link(client_link_id, require_accepted=False)
+    if error:
+        return error
+
+    if link.get("status") != "Accepted":
+        status = "no_client_permission"
+    else:
+        status = link.get("budget_edit_status", "none")
+
+    return jsonify({"ok": True, "status": status})
+
+
+@app.route("/api/advisor/budget_edit_request", methods=["POST"])
+@login_required
+def api_budget_edit_request():
+    """
+    Advisor clicks 'Request Access' – ask client for permission to edit budget limit.
+    """
+    if session.get("role") != "Financial Advisor":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    client_id = data.get("client_id")
+    if not client_id:
+        return jsonify({"ok": False, "message": "client_id required"}), 400
+
+    # Must own this link AND client must have accepted being a client
+    link, error = _get_advisor_client_link(client_id, require_accepted=True)
+    if error:
+        return error
+
+    clients_col.update_one(
+        {"_id": link["_id"]},
+        {"$set": {
+            "budget_edit_status": "pending",
+            "budget_edit_requested_at": datetime.utcnow(),
+            "budget_edit_updated_at": None,
+        }},
+    )
+
+    return jsonify({"ok": True, "status": "pending"})
+
+
+@app.route("/api/advisor/update_client_budget_limit", methods=["POST"])
+@login_required
+def api_update_client_budget_limit():
+    """
+    Advisor actually edits client budget limit (only if client granted permission).
+    """
+    if session.get("role") != "Financial Advisor":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    client_id = data.get("client_id")
+    new_limit = data.get("limit")
+
+    if client_id is None or new_limit is None:
+        return jsonify({"ok": False, "message": "client_id and limit required"}), 400
+
+    try:
+        new_limit = float(new_limit)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "message": "Invalid limit value"}), 400
+
+    if new_limit < 0:
+        return jsonify({"ok": False, "message": "Limit must be non-negative"}), 400
+
+    link, error = _get_advisor_client_link(client_id, require_accepted=True)
+    if error:
+        return error
+
+    if link.get("budget_edit_status") != "granted":
+        return jsonify({
+            "ok": False,
+            "message": "Budget edit permission not granted by client"
+        }), 403
+
+    client_user_obj_id = link["user_id"]
+
+    users_col.update_one(
+        {"_id": client_user_obj_id},
+        {"$set": {"spending_limit": new_limit}}
+    )
+
+    # Recalc overspending flag for that client
+    recalc_spending_flag_for_user(str(client_user_obj_id))
+
+    return jsonify({"ok": True, "limit": float(new_limit)})
 
 
 @app.route("/api/user/update_spending_limit", methods=["POST"])
@@ -716,6 +829,75 @@ def api_client_requests_respond():
 
     return jsonify({"ok": True, "status": new_status})
 
+@app.route("/api/client/budget_limit_requests")
+@login_required
+def api_client_budget_limit_requests():
+    """
+    Client sees pending 'edit budget limit' requests from advisors.
+    """
+    user_id_str = session.get("user_id")
+    try:
+        user_obj_id = ObjectId(user_id_str)
+    except Exception:
+        return jsonify({"ok": False, "message": "Invalid user id"}), 400
+
+    links = list(clients_col.find({
+        "user_id": user_obj_id,
+        "budget_edit_status": "pending",
+        "advisor_id": {"$ne": None},
+    }))
+
+    user = users_col.find_one({"_id": user_obj_id})
+    current_limit = float(user.get("spending_limit", DEFAULT_SPENDING_LIMIT)) if user else DEFAULT_SPENDING_LIMIT
+
+    requests_out = []
+    for link in links:
+        advisor = users_col.find_one({"_id": link["advisor_id"]})
+        advisor_name = advisor.get("fullName", "Unknown Advisor") if advisor else "Unknown Advisor"
+        requests_out.append({
+            "id": str(link["_id"]),          # client-link id
+            "advisorName": advisor_name,
+            "currentLimit": current_limit,
+        })
+
+    return jsonify({"ok": True, "requests": requests_out})
+
+
+@app.route("/api/client/budget_limit_requests/respond", methods=["POST"])
+@login_required
+def api_client_budget_limit_requests_respond():
+    """
+    Client accepts / declines budget edit request.
+    """
+    data = request.get_json(silent=True) or {}
+    link_id = data.get("id")
+    decision = (data.get("decision") or "").lower()
+
+    if decision not in ("accept", "decline"):
+        return jsonify({"ok": False, "message": "Invalid decision"}), 400
+
+    user_id_str = session.get("user_id")
+    try:
+        user_obj_id = ObjectId(user_id_str)
+        link_obj_id = ObjectId(link_id)
+    except Exception:
+        return jsonify({"ok": False, "message": "Invalid id"}), 400
+
+    link = clients_col.find_one({"_id": link_obj_id, "user_id": user_obj_id})
+    if not link:
+        return jsonify({"ok": False, "message": "Request not found"}), 404
+
+    new_status = "granted" if decision == "accept" else "denied"
+
+    clients_col.update_one(
+        {"_id": link_obj_id},
+        {"$set": {
+            "budget_edit_status": new_status,
+            "budget_edit_updated_at": datetime.utcnow(),
+        }},
+    )
+
+    return jsonify({"ok": True, "status": new_status})
 
 # ---------------------------
 # BANK / PLAID API ENDPOINTS

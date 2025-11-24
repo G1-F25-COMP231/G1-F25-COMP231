@@ -2,6 +2,7 @@ console.log("[advisor_summary.js] Loaded");
 
 let lineChart;
 let pieChart;
+let currentClientLinkId = null; // track which client link is active
 
 // Simple money formatter
 function formatMoney(n) {
@@ -19,6 +20,20 @@ document.addEventListener("DOMContentLoaded", () => {
 function initAdvisorSummary() {
   const loadBtn = document.getElementById("loadSummaryBtn");
   const timeFilter = document.getElementById("timeFilter");
+
+  const budgetBtn = document.getElementById("budgetAccessBtn");
+  const saveBtn = document.getElementById("budgetSaveBtn");
+  const cancelBtn = document.getElementById("budgetCancelBtn");
+
+  if (budgetBtn) {
+    budgetBtn.addEventListener("click", onBudgetAccessClick);
+  }
+  if (saveBtn) {
+    saveBtn.addEventListener("click", onBudgetSave);
+  }
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", onBudgetCancel);
+  }
 
   // Load advisor's clients into dropdown
   loadAdvisorClients().then(() => {
@@ -50,6 +65,9 @@ function initAdvisorSummary() {
       }
     });
   }
+
+  // Initial disabled state for budget button
+  updateBudgetAccessUI("none");
 }
 
 /**
@@ -98,11 +116,17 @@ function reloadSummary() {
 
   if (!clientSelect || !clientSelect.value) {
     alert("Please select a client first.");
+    currentClientLinkId = null;
+    updateBudgetAccessUI("none");
+    hideBudgetEditForm();
     return;
   }
 
   const clientLinkId = clientSelect.value;
   const range = timeFilter ? timeFilter.value : "month";
+
+  currentClientLinkId = clientLinkId;
+  hideBudgetEditForm();
 
   // -------------------------
   // 1) Load main summary data
@@ -137,6 +161,11 @@ function reloadSummary() {
   // 3) Load alert summary
   // -------------------------
   loadAlertSummary(clientLinkId);
+
+  // -------------------------
+  // 4) Load budget edit permission state
+  // -------------------------
+  loadBudgetAccessState(clientLinkId);
 }
 
 /* ==========================
@@ -154,6 +183,7 @@ function checkOverspending(linkId, timeFilter) {
     .then((res) => res.json())
     .then((data) => {
       if (!data.ok) return;
+      updateBudgetLimitDisplay(data.budget_limit);
       if (data.overspending) {
         showOverspendingBanner(data.total_spent, data.budget_limit);
       } else {
@@ -177,6 +207,13 @@ function hideOverspendingBanner() {
   const banner = document.getElementById("overspendingBanner");
   if (!banner) return;
   banner.style.display = "none";
+}
+
+function updateBudgetLimitDisplay(limit) {
+  const span = document.getElementById("alertBudgetLimitText");
+  if (!span) return;
+  const n = Number(limit || 0);
+  span.textContent = `$${n.toFixed(2)}`;
 }
 
 /* ==========================
@@ -215,6 +252,179 @@ function loadAlertSummary(clientLinkId) {
       });
     })
     .catch((err) => console.error("Alert Summary Error:", err));
+}
+
+/* ==========================
+   BUDGET EDIT ACCESS (NEW)
+   ========================== */
+
+// Ask server what the current budget-edit permission status is
+function loadBudgetAccessState(clientLinkId) {
+  const btn = document.getElementById("budgetAccessBtn");
+  if (!btn) return;
+
+  btn.disabled = true;
+  btn.textContent = "Loading…";
+
+  fetch(`/api/advisor/budget_edit_status/${clientLinkId}`)
+    .then((res) => res.json())
+    .then((data) => {
+      if (!data.ok) throw new Error(data.message || "Status error");
+      updateBudgetAccessUI(data.status || "none");
+    })
+    .catch((err) => {
+      console.error("Budget access status error:", err);
+      updateBudgetAccessUI("none");
+    });
+}
+
+// Update the button text / enabled state based on permission status
+function updateBudgetAccessUI(status) {
+  const btn = document.getElementById("budgetAccessBtn");
+  if (!btn) return;
+
+  if (!currentClientLinkId) {
+    btn.disabled = true;
+    btn.textContent = "Select a client";
+    btn.dataset.mode = "none";
+    return;
+  }
+
+  switch (status) {
+    case "granted":
+      btn.disabled = false;
+      btn.textContent = "Edit Budget Limit";
+      btn.dataset.mode = "edit";
+      break;
+    case "pending":
+      btn.disabled = true;
+      btn.textContent = "Request Pending…";
+      btn.dataset.mode = "pending";
+      break;
+    case "no_client_permission":
+      btn.disabled = true;
+      btn.textContent = "Awaiting Client Permission";
+      btn.dataset.mode = "none";
+      break;
+    case "denied":
+    case "none":
+    default:
+      btn.disabled = false;
+      btn.textContent = "Request Access";
+      btn.dataset.mode = "request";
+  }
+}
+
+// Click handler for main button
+function onBudgetAccessClick() {
+  const btn = document.getElementById("budgetAccessBtn");
+  if (!btn) return;
+
+  if (!currentClientLinkId) {
+    alert("Please select a client first.");
+    return;
+  }
+
+  const mode = btn.dataset.mode || "request";
+
+  if (mode === "request") {
+    // Send permission request
+    btn.disabled = true;
+    btn.textContent = "Requesting…";
+
+    fetch("/api/advisor/budget_edit_request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: currentClientLinkId }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.ok) throw new Error(data.message || "Request failed");
+        updateBudgetAccessUI("pending");
+      })
+      .catch((err) => {
+        console.error("Budget edit request error:", err);
+        alert("Could not send request. Please try again.");
+        updateBudgetAccessUI("none");
+      });
+  } else if (mode === "edit") {
+    // Show inline edit form
+    showBudgetEditForm();
+  }
+}
+
+// Show / hide inline edit form
+function showBudgetEditForm() {
+  const form = document.getElementById("budgetEditForm");
+  const input = document.getElementById("budgetLimitInput");
+  const span = document.getElementById("alertBudgetLimitText");
+  if (!form || !input || !span) return;
+
+  const currentText = span.textContent || "$0.00";
+  const num = parseFloat(currentText.replace(/[^0-9.]/g, "")) || 0;
+  input.value = num.toFixed(2);
+
+  form.style.display = "flex";
+}
+
+function hideBudgetEditForm() {
+  const form = document.getElementById("budgetEditForm");
+  if (form) form.style.display = "none";
+}
+
+// Save / cancel handlers
+function onBudgetSave(e) {
+  e.preventDefault();
+  if (!currentClientLinkId) {
+    alert("Please select a client first.");
+    return;
+  }
+
+  const input = document.getElementById("budgetLimitInput");
+  if (!input) return;
+
+  const value = parseFloat(input.value);
+  if (!Number.isFinite(value) || value < 0) {
+    alert("Enter a valid non-negative limit.");
+    return;
+  }
+
+  fetch("/api/advisor/update_client_budget_limit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: currentClientLinkId,
+      limit: value,
+    }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (!data.ok) throw new Error(data.message || "Failed to update");
+
+      // Update the header "Budget Limit: $X"
+      updateBudgetLimitDisplay(data.limit);
+
+      // Hide the inline edit form
+      hideBudgetEditForm();
+
+      // 🔥 Immediately refresh the alert table + overspending banner
+      const timeFilter = document.getElementById("timeFilter");
+      const range = timeFilter ? timeFilter.value : "month";
+
+      loadAlertSummary(currentClientLinkId);
+      checkOverspending(currentClientLinkId, range);
+      // (optional) if you also want charts/transactions to refresh:
+      // reloadSummary();
+    })
+    .catch((err) => {
+      console.error("Budget limit update error:", err);
+      alert("Could not update budget limit.");
+    });
+}
+
+function onBudgetCancel(e) {
+  e.preventDefault();
+  hideBudgetEditForm();
 }
 
 /* ==========================
