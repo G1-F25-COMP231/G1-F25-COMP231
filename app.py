@@ -335,6 +335,170 @@ def advisor_summary_page():
     return render_template("advisor_summary.html")
 
 
+@app.route("/api/advisor/check_overspending", methods=["POST"])
+@login_required
+def api_check_overspending():
+    if session.get("role") != "Financial Advisor":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    data = request.get_json() or {}
+    client_link_id = data.get("client_id")
+    time_filter = data.get("time_filter", "month")
+
+    if not client_link_id:
+        return jsonify({"ok": False, "message": "Missing client id"}), 400
+
+    advisor_id = ObjectId(session["user_id"])
+
+    try:
+        link_obj_id = ObjectId(client_link_id)
+    except:
+        return jsonify({"ok": False, "message": "Invalid client id"}), 400
+
+    # Confirm advisor owns this client
+    link = clients_col.find_one({
+        "_id": link_obj_id,
+        "advisor_id": advisor_id
+    })
+
+    if not link:
+        return jsonify({"ok": False, "message": "Client not found"}), 404
+
+    client_user_id = str(link["user_id"])
+
+    # Time filter
+    now = datetime.utcnow().date()
+    if time_filter == "month":
+        cutoff = now - timedelta(days=30)
+    elif time_filter == "quarter":
+        cutoff = now - timedelta(days=90)
+    else:
+        cutoff = now - timedelta(days=365)
+
+    # Fetch Plaid data
+    bank_doc = bank_accounts_col.find_one({"user_id": client_user_id})
+    if not bank_doc:
+        return jsonify({"ok": True, "overspending": False, "reason": "No bank data"})
+
+    txs = bank_doc.get("recent_transactions", [])
+    total_spent = 0.0
+
+    for tx in txs:
+        # parse date
+        d_str = tx.get("date")
+        try:
+            d = datetime.fromisoformat(d_str).date()
+            if d < cutoff:
+                continue
+        except:
+            continue
+
+        amt = float(tx.get("amount", 0))
+        name = tx.get("name", "")
+        cat = tx.get("category", "")
+
+        is_income = _classify_direction(name, cat)
+        if not is_income:
+            total_spent += abs(amt)
+
+    # Spending limit (default = 1000)
+    user_doc = users_col.find_one({"_id": link["user_id"]})
+    spending_limit = float(user_doc.get("spending_limit", DEFAULT_SPENDING_LIMIT))
+
+    overspending = total_spent > spending_limit
+
+    # Store alert if overspending
+    if overspending:
+        db.alerts.insert_one({
+            "client_id": client_user_id,
+            "advisor_id": advisor_id,
+            "timestamp": datetime.utcnow(),
+            "amount_spent": total_spent,
+            "budget_limit": spending_limit,
+            "type": "overspending"
+        })
+
+    return jsonify({
+        "ok": True,
+        "overspending": overspending,
+        "total_spent": round(total_spent, 2),
+        "budget_limit": spending_limit
+    })
+
+
+
+@app.route("/api/advisor/alert_summary/<client_link_id>")
+@login_required
+def api_alert_summary(client_link_id):
+    if session.get("role") != "Financial Advisor":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    advisor_id = ObjectId(session["user_id"])
+
+    try:
+        link_obj = ObjectId(client_link_id)
+    except:
+        return jsonify({"ok": False, "message": "Invalid id"}), 400
+
+    link = clients_col.find_one({"_id": link_obj, "advisor_id": advisor_id})
+    if not link:
+        return jsonify({"ok": False, "message": "Client not found"}), 404
+
+    client_user_id = str(link["user_id"])
+
+    alerts = list(db.alerts.find(
+        {"client_id": client_user_id}
+    ).sort("timestamp", -1))
+
+    formatted = []
+    for a in alerts:
+        formatted.append({
+            "timestamp": a["timestamp"].isoformat(),
+            "type": a.get("type", "overspending"),
+            "spent": a.get("amount_spent", 0),
+            "limit": a.get("budget_limit", 0)
+        })
+
+    return jsonify({"ok": True, "alerts": formatted})
+
+
+
+@app.route("/api/user/update_spending_limit", methods=["POST"])
+@login_required
+def api_update_spending_limit():
+    data = request.get_json(silent=True) or {}
+    new_limit = data.get("limit")
+
+    print("== UPDATE SPENDING LIMIT ==")
+    print("SESSION USER:", session.get("user_id"))
+
+    if new_limit is None:
+        return jsonify({"ok": False, "message": "Limit required"}), 400
+
+    try:
+        new_limit = float(new_limit)
+    except:
+        return jsonify({"ok": False, "message": "Invalid limit value"}), 400
+
+    user_id = session.get("user_id")
+
+    users_col.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"spending_limit": new_limit}}
+    )
+
+    recalc_spending_flag_for_user(user_id)
+
+    print("LIMIT UPDATED TO:", new_limit)
+
+    return jsonify({
+        "ok": True,
+        "limit": new_limit,
+        "message": "Spending limit updated"
+    })
+
+
+
 from bson import ObjectId, errors as bson_errors  # keep this import
 
 @app.route("/api/advisor/set_priority", methods=["POST"])

@@ -22,9 +22,9 @@ function initAdvisorSummary() {
 
   // Load advisor's clients into dropdown
   loadAdvisorClients().then(() => {
-    // If page was opened from "View Summary" link, try to pre-select that client
+    // Pre-select if ?client=<id>
     const params = new URLSearchParams(window.location.search);
-    const clientParam = params.get("client"); // link id (from clients_col)
+    const clientParam = params.get("client");
 
     const clientSelect = document.getElementById("clientSelect");
     if (clientParam && clientSelect) {
@@ -54,7 +54,6 @@ function initAdvisorSummary() {
 
 /**
  * Fill <select id="clientSelect"> with advisor's clients.
- * Expects /api/advisor/clients to return { ok: true, clients: [ { _id, user_id, fullName, email, ... } ] }
  */
 function loadAdvisorClients() {
   const clientSelect = document.getElementById("clientSelect");
@@ -62,10 +61,10 @@ function loadAdvisorClients() {
 
   return fetch("/api/advisor/clients")
     .then((res) => res.json())
-    .then((data) => {
-      const clients = Array.isArray(data) ? data : data.clients || [];
+    .then((clients) => {
+      clients = Array.isArray(clients) ? clients : [];
 
-      if (!Array.isArray(clients) || clients.length === 0) {
+      if (!clients.length) {
         clientSelect.innerHTML =
           '<option value="">No clients available</option>';
         return;
@@ -78,9 +77,7 @@ function loadAdvisorClients() {
         const name = c.full_name || c.fullName || "Unknown";
         const email = c.email || "";
 
-        // value is the client-link id (clients_col _id)
-        opt.value = c._id;
-        // keep user_id in data attribute if we ever want it
+        opt.value = c._id; // client link id
         if (c.user_id) opt.dataset.userId = c.user_id;
 
         opt.textContent = email ? `${name} (${email})` : name;
@@ -94,7 +91,6 @@ function loadAdvisorClients() {
 
 /**
  * Load summary for selected client + time range.
- * If no Plaid data, show "No data available" in both chart cards.
  */
 function reloadSummary() {
   const clientSelect = document.getElementById("clientSelect");
@@ -105,9 +101,12 @@ function reloadSummary() {
     return;
   }
 
-  const clientLinkId = clientSelect.value; // clients_col _id
+  const clientLinkId = clientSelect.value;
   const range = timeFilter ? timeFilter.value : "month";
 
+  // -------------------------
+  // 1) Load main summary data
+  // -------------------------
   fetch(
     `/api/advisor/summary?client=${encodeURIComponent(
       clientLinkId
@@ -115,29 +114,113 @@ function reloadSummary() {
   )
     .then((res) => res.json())
     .then((data) => {
-      // If backend says no data (no Plaid), show the "No data" state
       if (!data || data.ok === false || data.hasData === false) {
         showNoDataState();
-        return;
+      } else {
+        hideNoDataState();
+        renderLineChart(data.income || [], data.expenses || [], data.labels || []);
+        renderPieChart(data.categoryBreakdown || {});
+        updateTransactionsTable(data.transactions || []);
       }
-
-      hideNoDataState();
-
-      renderLineChart(data.income || [], data.expenses || [], data.labels || []);
-      renderPieChart(data.categoryBreakdown || {});
-      updateTransactionsTable(data.transactions || []);
     })
     .catch((err) => {
       console.error("Error loading summary:", err);
       showNoDataState();
     });
+
+  // -------------------------
+  // 2) Check overspending
+  // -------------------------
+  checkOverspending(clientLinkId, range);
+
+  // -------------------------
+  // 3) Load alert summary
+  // -------------------------
+  loadAlertSummary(clientLinkId);
 }
 
 /* ==========================
-   NO DATA STATE HANDLING
+   OVEREPENDING CHECK + BANNER
+   ========================== */
+function checkOverspending(linkId, timeFilter) {
+  fetch("/api/advisor/check_overspending", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: linkId,
+      time_filter: timeFilter,
+    }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (!data.ok) return;
+      if (data.overspending) {
+        showOverspendingBanner(data.total_spent, data.budget_limit);
+      } else {
+        hideOverspendingBanner();
+      }
+    })
+    .catch((err) => console.error("Overspending error:", err));
+}
+
+function showOverspendingBanner(spent, limit) {
+  const banner = document.getElementById("overspendingBanner");
+  if (!banner) return;
+
+  banner.innerHTML = `⚠️ Overspending Alert: Spent $${spent.toFixed(
+    2
+  )} (Limit: $${limit})`;
+  banner.style.display = "block";
+}
+
+function hideOverspendingBanner() {
+  const banner = document.getElementById("overspendingBanner");
+  if (!banner) return;
+  banner.style.display = "none";
+}
+
+/* ==========================
+   ALERT SUMMARY MODULE
+   ========================== */
+function loadAlertSummary(clientLinkId) {
+  fetch(`/api/advisor/alert_summary/${clientLinkId}`)
+    .then((res) => res.json())
+    .then((data) => {
+      const tbody = document.getElementById("alertSummaryTableBody");
+      if (!tbody) return;
+
+      tbody.innerHTML = "";
+
+      if (!data.alerts || !data.alerts.length) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="4" style="text-align:center; color:#b8c4d1;">
+              No alerts recorded.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      data.alerts.forEach((a) => {
+        const dateStr = new Date(a.timestamp).toLocaleDateString();
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${dateStr}</td>
+          <td>${a.type}</td>
+          <td>$${a.spent.toFixed(2)}</td>
+          <td>$${a.limit.toFixed(2)}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    })
+    .catch((err) => console.error("Alert Summary Error:", err));
+}
+
+/* ==========================
+   NO DATA STATE
    ========================== */
 function showNoDataState() {
-  // Destroy charts if they exist
   if (lineChart) {
     lineChart.destroy();
     lineChart = null;
@@ -147,38 +230,25 @@ function showNoDataState() {
     pieChart = null;
   }
 
-  const lineCanvas = document.getElementById("lineChart");
-  const pieCanvas = document.getElementById("pieChart");
-  const lineNoData = document.getElementById("lineChartNoData");
-  const pieNoData = document.getElementById("pieChartNoData");
+  document.getElementById("lineChart").style.display = "none";
+  document.getElementById("pieChart").style.display = "none";
+  document.getElementById("lineChartNoData").style.display = "block";
+  document.getElementById("pieChartNoData").style.display = "block";
 
-  if (lineCanvas) lineCanvas.style.display = "none";
-  if (pieCanvas) pieCanvas.style.display = "none";
-  if (lineNoData) lineNoData.style.display = "block";
-  if (pieNoData) pieNoData.style.display = "block";
-
-  const tbody = document.getElementById("clientTxTableBody");
-  if (tbody) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="4" style="text-align:center; color:#b8c4d1;">
-          No transactions available.
-        </td>
-      </tr>
-    `;
-  }
+  document.getElementById("clientTxTableBody").innerHTML = `
+    <tr>
+      <td colspan="4" style="text-align:center; color:#b8c4d1;">
+        No transactions available.
+      </td>
+    </tr>
+  `;
 }
 
 function hideNoDataState() {
-  const lineCanvas = document.getElementById("lineChart");
-  const pieCanvas = document.getElementById("pieChart");
-  const lineNoData = document.getElementById("lineChartNoData");
-  const pieNoData = document.getElementById("pieChartNoData");
-
-  if (lineCanvas) lineCanvas.style.display = "block";
-  if (pieCanvas) pieCanvas.style.display = "block";
-  if (lineNoData) lineNoData.style.display = "none";
-  if (pieNoData) pieNoData.style.display = "none";
+  document.getElementById("lineChart").style.display = "block";
+  document.getElementById("pieChart").style.display = "block";
+  document.getElementById("lineChartNoData").style.display = "none";
+  document.getElementById("pieChartNoData").style.display = "none";
 }
 
 /* ==========================
@@ -216,9 +286,7 @@ function renderLineChart(income, expenses, labels) {
     },
     options: {
       responsive: true,
-      plugins: {
-        legend: { labels: { color: "#fff" } },
-      },
+      plugins: { legend: { labels: { color: "#fff" } } },
       scales: {
         x: {
           ticks: { color: "#ccc" },
@@ -246,7 +314,6 @@ function renderPieChart(breakdown) {
   const labels = Object.keys(breakdown);
   const values = Object.values(breakdown);
 
-  // If backend sent empty breakdown, show "No data" instead
   if (!labels.length) {
     showNoDataState();
     return;
@@ -278,9 +345,7 @@ function renderPieChart(breakdown) {
     },
     options: {
       responsive: true,
-      plugins: {
-        legend: { labels: { color: "#fff" } },
-      },
+      plugins: { legend: { labels: { color: "#fff" } } },
     },
   });
 }
@@ -316,9 +381,7 @@ function updateTransactionsTable(transactions) {
           <td>${date}</td>
           <td>${merchant}</td>
           <td>${category}</td>
-          <td style="color:${color};">
-            ${formatMoney(amt)}
-          </td>
+          <td style="color:${color};">${formatMoney(amt)}</td>
         </tr>
       `;
     })

@@ -3,33 +3,55 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const toggleBtn = document.getElementById("toggleSidebar");
   const sidebar = document.getElementById("sidebar");
+  const saveBtn = document.getElementById("saveBtn"); // ✅ FIXED
+
   if (toggleBtn && sidebar) {
     toggleBtn.addEventListener("click", () => {
       sidebar.classList.toggle("hidden");
     });
   }
 
-  const saveBtn = document.getElementById("saveBtn");
   if (saveBtn) {
     saveBtn.addEventListener("click", () => {
-      const total = document.getElementById("totalBudget").value;
-      const categories = {
-        groceries: document.getElementById("budgetGroceries").value,
-        dining: document.getElementById("budgetDining").value,
-        transport: document.getElementById("budgetTransport").value,
-        bills: document.getElementById("budgetBills").value,
-      };
+      const limit = document.getElementById("totalBudget").value;
 
-      const data = { total, categories };
-
-      try {
-        localStorage.setItem("budgetSettings", JSON.stringify(data));
-        alert("✅ Budget settings saved successfully!");
-        console.log("[settings.js] Saved:", data);
-      } catch (err) {
-        console.error("Error saving budget settings:", err);
-        alert("❌ Failed to save settings. Check console for details.");
+      if (!limit || Number(limit) <= 0) {
+        alert("Please enter a valid monthly budget.");
+        return;
       }
+
+      // 🔥 SEND TO BACKEND
+      fetch("/api/user/update_spending_limit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limit })
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.ok) {
+            alert("✅ Monthly budget updated! Your advisor will now see this limit.");
+            console.log("[settings.js] Updated spending limit:", data.limit);
+
+            // Save categories locally (optional)
+            const categories = {
+              groceries: document.getElementById("budgetGroceries").value,
+              dining: document.getElementById("budgetDining").value,
+              transport: document.getElementById("budgetTransport").value,
+              bills: document.getElementById("budgetBills").value,
+            };
+
+            localStorage.setItem("budgetSettings", JSON.stringify({
+              total: limit,
+              categories
+            }));
+          } else {
+            alert("❌ Failed to update limit: " + data.message);
+          }
+        })
+        .catch((err) => {
+          console.error("Error updating spending limit:", err);
+          alert("❌ Error connecting to server.");
+        });
     });
   }
 
