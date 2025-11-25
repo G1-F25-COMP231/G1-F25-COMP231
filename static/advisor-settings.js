@@ -47,20 +47,21 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ===============================
-// LOAD ALL CLIENTS
+// LOAD ALL CLIENTS  (FIXED)
 // ===============================
 function loadClients() {
   fetch("/api/advisor/clients")
     .then(res => res.json())
     .then(data => {
-      if (!data.ok) {
-        console.error("Error loading clients:", data);
+      // ❗ FIX: API returns a raw array, not { ok, clients }
+      if (!Array.isArray(data)) {
+        console.error("Unexpected clients API format:", data);
         return;
       }
 
       clientSelect.innerHTML = `<option value="">Select a client...</option>`;
 
-      data.clients.forEach(c => {
+      data.forEach(c => {
         const opt = document.createElement("option");
         opt.value = c._id;
         opt.textContent = `${c.full_name} (${c.email})`;

@@ -20,10 +20,6 @@
 
       <select id="clientSelect" class="select-input">
         <option value="">Select a client...</option>
-        <option value="1">Daniel Saragil</option>
-        <option value="2">Luca Distefano</option>
-        <option value="3">Peter Christe</option>
-        <option value="4">Amira Khan</option>
       </select>
     </div>
 
@@ -63,11 +59,11 @@
       <p class="card__subtitle">Control what this client sees on their dashboard.</p>
 
       <div class="toggles">
-        <label><input type="checkbox" checked> Spending Overview</label>
-        <label><input type="checkbox" checked> Category Breakdown</label>
-        <label><input type="checkbox" checked> Savings Progress</label>
-        <label><input type="checkbox"> AI Insights</label>
-        <label><input type="checkbox"> Upcoming Bills</label>
+        <label><input type="checkbox" id="viewOverview" checked> Spending Overview</label>
+        <label><input type="checkbox" id="viewCategory" checked> Category Breakdown</label>
+        <label><input type="checkbox" id="viewSavings" checked> Savings Progress</label>
+        <label><input type="checkbox" id="viewAI"> AI Insights</label>
+        <label><input type="checkbox" id="viewBills"> Upcoming Bills</label>
       </div>
     </div>
 

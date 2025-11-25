@@ -55,6 +55,8 @@ bank_accounts_col = db.get_collection("bank_account_connected")
 notes_col = db.get_collection("notes")
 clients_col = db.get_collection("clients")
 notifications_col = db.get_collection("notifications")
+advisor_notes_col = db.get_collection("advisor_notes")
+
 
 
 
@@ -571,25 +573,51 @@ def api_save_client_settings():
     payload = {
         "total_budget": data.get("total_budget", 0),
         "categories": {
-            "groceries": data.get("groceries", 0),
-            "dining": data.get("dining", 0),
-            "transport": data.get("transport", 0),
-            "bills": data.get("bills", 0)
+            "groceries": data.get("categories", {}).get("groceries", 0),
+            "dining": data.get("categories", {}).get("dining", 0),
+            "transport": data.get("categories", {}).get("transport", 0),
+            "bills": data.get("categories", {}).get("bills", 0),
         },
         "dashboard": data.get("dashboard", {}),
         "notes": data.get("notes", "")
     }
 
+    # Save settings to DB
     db.client_settings.update_one(
         {"client_id": client_id},
         {"$set": payload},
         upsert=True
     )
 
-    # 🔥 CREATE ADVISOR-NOTE NOTIFICATION
+    # -----------------------------------
+    # ADVISOR NOTES COLLECTION INSERTION
+    # -----------------------------------
     if data.get("notes"):
+        # Fetch advisor info
+        advisor = users_col.find_one({"_id": ObjectId(session["user_id"])})
+        advisor_name = advisor.get("fullName", "Unknown Advisor")
+
+        # Fetch client link
+        client_link = clients_col.find_one({"_id": ObjectId(client_id)})
+        if not client_link:
+            return jsonify(ok=False, message="Client link not found"), 400
+
+        # Fetch actual client user
+        client_user = users_col.find_one({"_id": client_link["user_id"]})
+        client_name = client_user.get("fullName", "Unknown Client") if client_user else "Unknown Client"
+
+        advisor_notes_col.insert_one({
+            "advisor_id": ObjectId(session["user_id"]),
+            "advisor_name": advisor_name,
+            "client_user_id": client_link["user_id"],   # REAL user id
+            "client_name": client_name,
+            "note": data["notes"],
+            "created_at": datetime.utcnow(),
+        })
+
+        # Notify client
         notifications_col.insert_one({
-            "user_id": client_id,  # client receives it
+            "user_id": client_link["user_id"],
             "message": f"Your advisor added a new note: {data['notes']}",
             "type": "advisor_note",
             "created_at": datetime.utcnow(),
@@ -597,6 +625,7 @@ def api_save_client_settings():
         })
 
     return jsonify(ok=True, message="Settings saved.")
+
 
 
 @app.route("/api/advisor/update_client_budget_limit", methods=["POST"])
@@ -645,6 +674,37 @@ def api_update_client_budget_limit():
 
     return jsonify({"ok": True, "limit": float(new_limit)})
 
+@app.route("/api/advisor/notes/<client_id>")
+@login_required
+def api_advisor_notes(client_id):
+    if session.get("role") != "Financial Advisor":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    try:
+        client_obj_id = ObjectId(client_id)
+    except Exception:
+        return jsonify({"ok": False, "message": "Invalid client id"}), 400
+
+    advisor_id = ObjectId(session["user_id"])
+
+    notes = list(advisor_notes_col.find({
+        "advisor_id": advisor_id,
+        "client_user_id": client_obj_id
+    }).sort("created_at", -1))
+
+    formatted = []
+    for n in notes:
+        formatted.append({
+            "advisor": n.get("advisor_name"),
+            "client": n.get("client_name"),
+            "note": n.get("note"),
+            "created_at": (
+                n["created_at"].isoformat()
+                if n.get("created_at") else None
+            )
+        })
+
+    return jsonify({"ok": True, "notes": formatted})
 
 @app.route("/api/user/update_spending_limit", methods=["POST"])
 @login_required

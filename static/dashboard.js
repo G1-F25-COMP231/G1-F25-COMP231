@@ -605,20 +605,22 @@ function initClientNotifications() {
   // ---- NEW: fetch BOTH advisor-link requests and budget-limit requests ----
   function fetchAllNotifications() {
     Promise.all([
+      // Advisor link requests
       fetch("/api/client/requests")
         .then((res) => res.json())
-        .catch((err) => {
-          console.error("Error fetching client requests:", err);
-          return null;
-        }),
+        .catch(() => null),
+
+      // Budget limit permission requests
       fetch("/api/client/budget_limit_requests")
         .then((res) => res.json())
-        .catch((err) => {
-          console.error("Error fetching budget limit requests:", err);
-          return null;
-        }),
+        .catch(() => null),
+
+      // Advisor NOTES (NEW)
+      fetch("/api/notifications")
+        .then((res) => res.json())
+        .catch(() => null),
     ])
-      .then(([linkData, budgetData]) => {
+      .then(([linkData, budgetData, notesData]) => {
         const advisorRequests =
           linkData && linkData.ok && Array.isArray(linkData.requests)
             ? linkData.requests
@@ -629,8 +631,18 @@ function initClientNotifications() {
             ? budgetData.requests
             : [];
 
-        renderNotifications(advisorRequests, budgetRequests);
-        updateBadge(advisorRequests.length + budgetRequests.length);
+        const noteNotifications =
+          notesData && notesData.ok && Array.isArray(notesData.notifications)
+            ? notesData.notifications.filter((n) => n.type === "advisor_note")
+            : [];
+
+        renderNotifications(advisorRequests, budgetRequests, noteNotifications);
+
+        updateBadge(
+          advisorRequests.length +
+          budgetRequests.length +
+          noteNotifications.length
+        );
       })
       .catch((err) => {
         console.error("Error fetching notifications:", err);
@@ -648,19 +660,23 @@ function initClientNotifications() {
   }
 
   // Renders BOTH types of notifications into the same panel
-  function renderNotifications(advisorRequests, budgetRequests) {
+  function renderNotifications(advisorRequests, budgetRequests, noteNotifications) {
     listEl.innerHTML = "";
 
-    const total = advisorRequests.length + budgetRequests.length;
-    if (!total) {
+    const total =
+      advisorRequests.length +
+      budgetRequests.length +
+      noteNotifications.length;
+
+    if (total === 0) {
       const empty = document.createElement("p");
       empty.className = "notif-empty";
-      empty.textContent = "No new requests.";
+      empty.textContent = "No new notifications.";
       listEl.appendChild(empty);
       return;
     }
 
-    // Advisor wants to add you as a client
+    // --- Advisor link requests ---
     advisorRequests.forEach((req) => {
       const item = document.createElement("div");
       item.className = "notif-item";
@@ -679,23 +695,18 @@ function initClientNotifications() {
                   data-id="${req.id}">
             Decline
           </button>
-        </div>
-      `;
+        </div>`;
       listEl.appendChild(item);
     });
 
-    // Advisor wants permission to edit your budget limit
+    // --- Budget limit permission requests ---
     budgetRequests.forEach((req) => {
-      const currentLimitNum = Number(req.currentLimit || 0);
-      const currentLimitText = `$${currentLimitNum.toFixed(2)}`;
-
       const item = document.createElement("div");
+      const currentLimitText = `$${Number(req.currentLimit || 0).toFixed(2)}`;
       item.className = "notif-item";
       item.innerHTML = `
-        <p>
-          <strong>${req.advisorName}</strong> wants permission to edit your budget limit
-          (current: <b>${currentLimitText}</b>).
-        </p>
+        <p><strong>${req.advisorName}</strong> wants permission to edit your budget limit
+          (current: <b>${currentLimitText}</b>).</p>
         <div class="notif-actions">
           <button class="btn small"
                   data-kind="budget"
@@ -709,29 +720,23 @@ function initClientNotifications() {
                   data-id="${req.id}">
             Deny
           </button>
-        </div>
-      `;
+        </div>`;
       listEl.appendChild(item);
     });
 
-    // Delegated click handler for ALL buttons
-    listEl.onclick = (e) => {
-      const btnEl = e.target.closest("button[data-action][data-kind]");
-      if (!btnEl) return;
-
-      const kind = btnEl.getAttribute("data-kind");      // "link" or "budget"
-      const decision = btnEl.getAttribute("data-action"); // "accept" / "decline"
-      const id = btnEl.getAttribute("data-id");
-
-      if (!id || !decision) return;
-
-      if (kind === "link") {
-        respondToAdvisorLinkRequest(id, decision);
-      } else if (kind === "budget") {
-        respondToBudgetLimitRequest(id, decision);
-      }
-    };
+    // --- NEW: Advisor Notes (simple notification) ---
+    noteNotifications.forEach((note) => {
+      const item = document.createElement("div");
+      item.className = "notif-item";
+      item.innerHTML = `
+        <p>📝 <strong>New advisor note:</strong> ${note.message}</p>
+        <p style="font-size:0.8rem; opacity:0.7;">
+          ${new Date(note.created_at).toLocaleString()}
+        </p>`;
+      listEl.appendChild(item);
+    });
   }
+
 
   function respondToAdvisorLinkRequest(id, decision) {
     fetch("/api/client/requests/respond", {
