@@ -25,7 +25,10 @@
         <a class="nav__item" href="/advisor_clients">👥 Client List</a>
         <a class="nav__item" href="/advisor_summary">📘 Financial Summary</a>
         <a class="nav__item" href="/advisor_priority">🏷 Priority Tags</a>
-        <a class="nav__item" href="/settings">⚙️ Settings</a>
+
+        <!-- FIXED (underscore, NOT hyphen) -->
+        <a class="nav__item" href="/advisor-settings">⚙️ Settings</a>
+
         <a class="nav__item logout" href="/logout">🚪 Logout</a>
       </nav>
     </aside>
@@ -39,7 +42,6 @@
 
   </div>
 
-  {# Page-specific scripts go here #}
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>

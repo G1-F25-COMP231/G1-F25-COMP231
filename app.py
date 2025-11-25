@@ -54,6 +54,8 @@ profile_pics_col = db.get_collection("profilepics")
 bank_accounts_col = db.get_collection("bank_account_connected")
 notes_col = db.get_collection("notes")
 clients_col = db.get_collection("clients")
+notifications_col = db.get_collection("notifications")
+
 
 
 
@@ -314,10 +316,14 @@ def advisor_clients_page():
         return redirect("/dashboard.html")
     return render_template("advisor_clients.html")
 
+@app.route("/advisor-settings")
+def advisor_settings():
+    return render_template("advisor-settings.html")
+
+
 @app.route("/api/advisor/clients")
 @login_required
 def api_advisor_clients():
-    # Must be a Financial Advisor
     if session.get("role") != "Financial Advisor":
         return jsonify({"ok": False, "message": "Unauthorized"}), 403
 
@@ -327,7 +333,11 @@ def api_advisor_clients():
     except Exception:
         return jsonify({"ok": False, "message": "Invalid advisor id"}), 400
 
-    links = list(clients_col.find({"advisor_id": advisor_obj_id}))
+    # 🔥 Only return accepted clients
+    links = list(clients_col.find({
+        "advisor_id": advisor_obj_id,
+        "status": "Accepted"
+    }))
 
     output = []
     for link in links:
@@ -336,20 +346,20 @@ def api_advisor_clients():
             continue
 
         output.append({
-            "_id": str(link["_id"]),                 # client-link id (used in URLs + dropdown)
-            "user_id": str(user_doc["_id"]),        # actual user id
+            "_id": str(link["_id"]),
+            "user_id": str(user_doc["_id"]),
             "full_name": user_doc.get("fullName", "Unknown"),
             "email": user_doc.get("email", ""),
             "priority": link.get("priority", "low"),
-            "status": link.get("status", "Pending"),
+            "status": link.get("status", "Accepted"),
             "created_at": (
                 link.get("created_at").isoformat()
                 if link.get("created_at") else None
             ),
         })
 
-    # 🔥 return bare array so BOTH advisor_clients.js and advisor_summary.js work
     return jsonify(output)
+
 
 
 
@@ -546,6 +556,47 @@ def api_budget_edit_request():
     )
 
     return jsonify({"ok": True, "status": "pending"})
+
+
+
+@app.route("/api/advisor/save_client_settings", methods=["POST"])
+@login_required
+def api_save_client_settings():
+    data = request.get_json()
+    client_id = data.get("client_id")
+
+    if not client_id:
+        return jsonify(ok=False, message="Missing client_id"), 400
+
+    payload = {
+        "total_budget": data.get("total_budget", 0),
+        "categories": {
+            "groceries": data.get("groceries", 0),
+            "dining": data.get("dining", 0),
+            "transport": data.get("transport", 0),
+            "bills": data.get("bills", 0)
+        },
+        "dashboard": data.get("dashboard", {}),
+        "notes": data.get("notes", "")
+    }
+
+    db.client_settings.update_one(
+        {"client_id": client_id},
+        {"$set": payload},
+        upsert=True
+    )
+
+    # 🔥 CREATE ADVISOR-NOTE NOTIFICATION
+    if data.get("notes"):
+        notifications_col.insert_one({
+            "user_id": client_id,  # client receives it
+            "message": f"Your advisor added a new note: {data['notes']}",
+            "type": "advisor_note",
+            "created_at": datetime.utcnow(),
+            "read": False
+        })
+
+    return jsonify(ok=True, message="Settings saved.")
 
 
 @app.route("/api/advisor/update_client_budget_limit", methods=["POST"])
@@ -761,6 +812,13 @@ def api_advisor_delete_client(client_id):
         return jsonify({"ok": False, "message": "Client not found"}), 404
 
     return jsonify({"ok": True})
+
+
+@app.route("/advisor_settings")
+def advisor_settings_page():
+    if "user_id" not in session:
+        return redirect("/")
+    return render_template("advisor-settings.html")
 
 # -----------------------------------------
 # CLIENT NOTIFICATIONS: ADVISOR REQUESTS
@@ -1604,6 +1662,26 @@ def notes_page():
     user_id = session.get("user_id")
     user_notes = list(notes_col.find({"user_id": user_id}).sort("created_at", -1))
     return render_template("notes.html", notes=user_notes)
+
+@app.route("/api/notifications", methods=["GET"])
+@login_required
+def api_notifications():
+    user_id = session.get("user_id")
+
+    items = list(notifications_col.find({"user_id": user_id}).sort("created_at", -1))
+
+    output = []
+    for n in items:
+        output.append({
+            "id": str(n["_id"]),
+            "message": n.get("message", ""),
+            "type": n.get("type", ""),
+            "created_at": n.get("created_at").isoformat() if n.get("created_at") else None,
+            "read": n.get("read", False)
+        })
+
+    return jsonify({"ok": True, "notifications": output})
+
 
 
 @app.route("/notes/add", methods=["POST"])
