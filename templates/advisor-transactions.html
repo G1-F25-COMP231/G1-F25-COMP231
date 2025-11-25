@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Client Transactions — BudgetMind AI</title>
+  <link rel="stylesheet" href="advisor-transactions.css">
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand__logo">💠</div>
+        <div class="brand__name">BudgetMind AI</div>
+      </div>
+
+      <nav class="nav">
+        <a href="dashboard.html" class="nav__item">🏠 Dashboard</a>
+        <a href="clients.html" class="nav__item">👥 Clients</a>
+        <a href="advisor-transactions.html" class="nav__item active">📄 Client Transactions</a>
+        <a href="advisor-settings.html" class="nav__item">⚙️ Advisor Settings</a>
+        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn" id="toggleSidebar">☰</button>
+        <h1 class="page-title">Client Transaction Records</h1>
+      </header>
+
+      <section class="content">
+
+        <div class="card">
+          <h2 class="card__title">Search & Filter</h2>
+          <p class="card__subtitle">Search client transactions by category, date, or amount.</p>
+
+          <div class="filters">
+            <input id="searchInput" type="text" placeholder="Search by merchant or category...">
+
+            <select id="categoryFilter">
+              <option value="">All Categories</option>
+              <option>Dining</option>
+              <option>Groceries</option>
+              <option>Transport</option>
+              <option>Bills</option>
+              <option>Shopping</option>
+            </select>
+
+            <select id="sortFilter">
+              <option value="">Sort By</option>
+              <option value="amountHigh">Amount (High → Low)</option>
+              <option value="amountLow">Amount (Low → High)</option>
+              <option value="dateNew">Newest First</option>
+              <option value="dateOld">Oldest First</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- TABLE -->
+        <div class="card table-card">
+          <h2 class="card__title">Transaction List</h2>
+
+          <table class="transaction-table">
+            <thead>
+              <tr>
+                <th>Merchant</th>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody id="transactionBody">
+
+              <!-- Example rows -->
+              <tr onclick="openTx()">
+                <td>Uber Eats</td>
+                <td>Nov 7, 2025</td>
+                <td>Dining</td>
+                <td class="negative">-$24.19</td>
+              </tr>
+
+              <tr onclick="openTx()">
+                <td>Costco Wholesale</td>
+                <td>Nov 6, 2025</td>
+                <td>Groceries</td>
+                <td>-$89.50</td>
+              </tr>
+
+              <tr onclick="openTx()">
+                <td>Shell Gas</td>
+                <td>Nov 5, 2025</td>
+                <td>Transport</td>
+                <td>-$52.70</td>
+              </tr>
+
+              <tr onclick="openTx()">
+                <td>Toronto Hydro</td>
+                <td>Nov 4, 2025</td>
+                <td>Bills</td>
+                <td>-$120.00</td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+
+      </section>
+
+      <footer class="footer">
+        <a href="#">About</a> · <a href="#">Contact Support</a> · <a href="#">Privacy</a>
+      </footer>
+    </main>
+
+  </div>
+
+  <script src="advisor-transactions.js"></script>
+
+</body>
+</html>
