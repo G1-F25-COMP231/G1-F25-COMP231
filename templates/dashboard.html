@@ -51,7 +51,6 @@
       <div class="topbar-left">
         <button class="icon-btn" id="toggleSidebar">☰</button>
 
-        <!-- NOTIFICATION BELL -->
         <button class="icon-btn notif-btn" id="notificationsBtn">
           🔔
           <span id="notificationsBadge" class="notif-badge hidden"></span>
@@ -66,10 +65,9 @@
     <!-- PAGE CONTENT -->
     <section class="content">
 
-      <!-- ROW 1 — Stat Cards -->
+      <!-- ROW 1 -->
       <div class="grid grid-3">
 
-        <!-- Total Balance -->
         <div class="card stat">
           <div class="stat__label">Total Balance</div>
           <div class="stat__value" id="totalBalance">$0.00</div>
@@ -78,7 +76,6 @@
           </div>
         </div>
 
-        <!-- Monthly Spending -->
         <div class="card stat">
           <div class="stat__label">Monthly Spending</div>
           <div class="stat__value" id="monthlySpending">$0.00</div>
@@ -86,7 +83,6 @@
           <div class="progress"><div class="progress__bar" id="monthlySpendingProgress"></div></div>
         </div>
 
-        <!-- Savings Goal -->
         <div class="card stat">
           <div class="stat__label">Savings Goal</div>
           <div class="stat__value" id="savingsGoalText">$0.00 / $10,000</div>
@@ -96,10 +92,9 @@
 
       </div>
 
-      <!-- ROW 2 — Charts -->
+      <!-- ROW 2 -->
       <div class="grid grid-2">
 
-        <!-- Income vs Expenses -->
         <div class="card chart">
           <div class="card__title">Income vs. Expenses</div>
           <div class="bars" id="barChart"></div>
@@ -122,10 +117,12 @@
           <canvas id="dashboardCategoryChart"></canvas>
         </div>
 
-      <!-- ROW 3 — AI + Recent Transactions -->
+      </div>
+
+      <!-- ROW 3 -->
       <div class="grid grid-2">
 
-        <!-- AI INSIGHTS -->
+        <!-- AI Insights -->
         <div class="card ai">
           <div class="card__title">AI Insights</div>
           <ul class="ai__list" id="aiInsights">
@@ -140,26 +137,39 @@
         <!-- Recent Transactions -->
         <div class="card table">
           <div class="card__title">Recent Transactions</div>
-
           <table>
             <thead>
               <tr><th>Date</th><th>Merchant</th><th>Category</th><th>Amount</th></tr>
             </thead>
             <tbody id="txTable"></tbody>
           </table>
-
           <div class="table__footer">
             <a class="link" href="/transaction-details.html">View all</a>
           </div>
         </div>
 
-      </div>
+        <!-- Advisor Notes -->
+        <div class="card ai">
+          <div class="card__title">Advisor Notes</div>
 
-    </section>
+          <div id="advisorNotesView" class="advisor-notes-view">
+            <p class="placeholder">Loading advisor notes…</p>
+          </div>
+
+          <div class="ai__actions">
+            <button class="btn ghost" disabled style="opacity:0.6; cursor:not-allowed;">
+              🔒 Read-Only
+            </button>
+          </div>
+        </div>
+
+      </div> <!-- END GRID -->
+
+    </section> <!-- END CONTENT -->
   </main>
 </div>
 
-<!-- AI CHAT MODAL -->
+<!-- AI Chat Modal -->
 <div id="aiChatModal" class="chat-modal hidden">
   <div class="chat-header">
     <h3>💬 BudgetMind AI Chat</h3>
@@ -174,7 +184,8 @@
   </form>
 </div>
 
-<!-- NOTIFICATIONS PANEL -->
+
+<!-- Notifications Panel -->
 <div id="notificationsPanel" class="notif-panel hidden">
   <div class="notif-header">
     <span>Notifications</span>

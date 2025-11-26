@@ -1,14 +1,18 @@
-// Sidebar toggle
+// ============================
+// SIDEBAR TOGGLE
+// ============================
 const toggleBtn = document.getElementById("toggleSidebar");
 const sidebar = document.getElementById("sidebar");
 
-toggleBtn.addEventListener("click", () => {
-  sidebar.classList.toggle("hidden");
-});
+if (toggleBtn) {
+  toggleBtn.addEventListener("click", () => {
+    sidebar.classList.toggle("hidden");
+  });
+}
 
-// -------------------------------
-// Fetch Category Breakdown
-// -------------------------------
+// ============================
+// LOAD CATEGORY BREAKDOWN
+// ============================
 async function loadCategoryData() {
   try {
     const res = await fetch("/api/category-breakdown");
@@ -22,7 +26,7 @@ async function loadCategoryData() {
     const labels = breakdown.map(x => x.category);
     const dataValues = breakdown.map(x => x.total);
 
-    renderChart(labels, dataValues);
+    renderCategoryChart(labels, dataValues);
     updateSummary(breakdown);
 
   } catch (err) {
@@ -30,10 +34,24 @@ async function loadCategoryData() {
   }
 }
 
-// -------------------------------
-// Render Chart.js Pie Chart
-// -------------------------------
-function renderChart(labels, dataValues) {
+// ============================
+// RENDER PIE CHART (Chart.js)
+// ============================
+let categoryChartInstance = null;
+
+function renderCategoryChart(labels, dataValues) {
+  const ctx = document.getElementById("dashboardCategoryChart");
+
+  if (!ctx) {
+    console.error("Canvas #dashboardCategoryChart not found");
+    return;
+  }
+
+  // Destroy previous chart to avoid duplicates
+  if (categoryChartInstance) {
+    categoryChartInstance.destroy();
+  }
+
   const colors = [
     "#00ffff",
     "#00b3b3",
@@ -44,48 +62,59 @@ function renderChart(labels, dataValues) {
     "#66fff2"
   ];
 
-  const ctx = document.getElementById("categoryChart");
-
-  new Chart(ctx, {
+  categoryChartInstance = new Chart(ctx, {
     type: "pie",
     data: {
       labels: labels,
-      datasets: [{
-        label: "Spending",
-        data: dataValues,
-        backgroundColor: colors.slice(0, labels.length),
-        borderColor: "#0a192f",
-        borderWidth: 2,
-      }]
+      datasets: [
+        {
+          label: "Spending",
+          data: dataValues,
+          backgroundColor: colors.slice(0, labels.length),
+          borderColor: "#0a192f",
+          borderWidth: 2,
+        }
+      ]
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false, // 🔥 Prevent giant overflow
       plugins: {
         legend: {
+          position: "top",
           labels: {
             color: "#e0e6ed",
-            font: { size: 14 }
+            font: { size: 13 }
           }
         }
+      },
+      layout: {
+        padding: 10
       }
     }
   });
 }
 
-// -------------------------------
-// Summary Section
-// -------------------------------
+// ============================
+// SUMMARY (HIGHEST/LOWEST)
+// ============================
 function updateSummary(breakdown) {
   if (breakdown.length === 0) return;
 
   const highest = breakdown[0];
   const lowest = breakdown[breakdown.length - 1];
 
-  document.getElementById("highestCategory").innerText =
-    `${highest.category} ($${highest.total})`;
+  const highestEl = document.getElementById("highestCategory");
+  const lowestEl = document.getElementById("lowestCategory");
 
-  document.getElementById("lowestCategory").innerText =
-    `${lowest.category} ($${lowest.total})`;
+  if (highestEl)
+    highestEl.innerText = `${highest.category} ($${highest.total})`;
+
+  if (lowestEl)
+    lowestEl.innerText = `${lowest.category} ($${lowest.total})`;
 }
 
+// ============================
+// INIT
+// ============================
 loadCategoryData();

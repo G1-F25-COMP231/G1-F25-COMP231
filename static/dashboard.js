@@ -21,6 +21,46 @@ function formatMoney(n) {
   return `$${Number(n || 0).toFixed(2)}`;
 }
 
+// ============================
+// Load Advisor Notes (Read-Only)
+// ============================
+async function loadAdvisorNotes() {
+  const container = document.getElementById("advisorNotesView");
+  if (!container) return;
+
+  try {
+    const res = await fetch("/api/user/advisor_notes");
+    const data = await res.json();
+
+    if (!data.ok) {
+      container.innerHTML = `<p class="placeholder">Unable to load advisor notes.</p>`;
+      return;
+    }
+
+    if (!data.notes || data.notes.length === 0) {
+      container.innerHTML = `<p class="placeholder">No notes from your advisor yet.</p>`;
+      return;
+    }
+
+    container.innerHTML = data.notes
+      .map(
+        (n) => `
+        <div class="note-item">
+          <div><strong>${n.advisor}</strong></div>
+          <div>${n.note}</div>
+          <div class="note-date">${new Date(n.created_at).toLocaleString()}</div>
+        </div>
+        <hr style="border-color:#1b263b;" />
+      `
+      )
+      .join("");
+
+  } catch (err) {
+    container.innerHTML = `<p class="placeholder">Error loading notes.</p>`;
+  }
+}
+
+
 // =======================
 // Load Profile Picture + Greeting from DB
 // =======================
@@ -294,53 +334,62 @@ if (logoutBtn) {
   });
 }
 
-// =======================
-// AI Chat Modal Logic
-// =======================
-const chatModal = document.getElementById("aiChatModal");
-const openChatBtn = document.getElementById("openChatBtn");
-const closeChat = document.getElementById("closeChat");
-const chatForm = document.getElementById("chatForm");
-const chatInput = document.getElementById("chatInput");
-const chatMessages = document.getElementById("chatMessages");
+document.addEventListener("DOMContentLoaded", () => {
+  const chatModal = document.getElementById("aiChatModal");
+  const openChatBtn = document.getElementById("openChatBtn");
+  const closeChat = document.getElementById("closeChat");
+  const chatForm = document.getElementById("chatForm");
+  const chatInput = document.getElementById("chatInput");
+  const chatMessages = document.getElementById("chatMessages");
 
-if (openChatBtn && chatModal) {
+  if (!chatModal || !openChatBtn) {
+    console.warn("AI Chat elements not found in DOM.");
+    return;
+  }
+
+  // Open chat
   openChatBtn.addEventListener("click", () => {
     chatModal.classList.remove("hidden");
+    setTimeout(() => chatInput.focus(), 120);
   });
-}
 
-if (closeChat && chatModal) {
-  closeChat.addEventListener("click", () => {
-    chatModal.classList.add("hidden");
-  });
-}
+  // Close chat
+  if (closeChat) {
+    closeChat.addEventListener("click", () => {
+      chatModal.classList.add("hidden");
+    });
+  }
 
-if (chatForm && chatMessages && chatInput) {
-  chatForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const userMsg = chatInput.value.trim();
-    if (!userMsg) return;
+  // Send message
+  if (chatForm) {
+    chatForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
 
-    chatMessages.innerHTML += `<p class="user">🧍 ${userMsg}</p>`;
-    chatInput.value = "";
+      const msg = chatInput.value.trim();
+      if (!msg) return;
 
-    try {
-      const res = await fetch("/api/ai-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg }),
-      });
+      chatMessages.innerHTML += `<p class="user">🧍 ${msg}</p>`;
+      chatInput.value = "";
 
-      const data = await res.json();
-      chatMessages.innerHTML += `<p class="ai">🤖 ${data.reply}</p>`;
+      try {
+        const res = await fetch("/api/ai-chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: msg }),
+        });
+
+        const data = await res.json();
+        chatMessages.innerHTML += `<p class="ai">🤖 ${data.reply}</p>`;
+      } catch {
+        chatMessages.innerHTML += `<p class="ai">⚠️ Connection error.</p>`;
+      }
+
       chatMessages.scrollTop = chatMessages.scrollHeight;
-    } catch (err) {
-      console.error("[AI Chat] Error:", err);
-      chatMessages.innerHTML += `<p class="ai">⚠️ Unable to connect to AI right now.</p>`;
-    }
-  });
-}
+    });
+  }
+});
+
+
 
 // =======================
 // BANK STATUS UI
@@ -548,12 +597,18 @@ document.addEventListener("DOMContentLoaded", () => {
 // =======================
 // Run dashboard updates
 // =======================
+// =======================
+// Run dashboard updates
+// =======================
 document.addEventListener("DOMContentLoaded", () => {
   updateBankUI();
   loadCategoryChart("all");
+  loadAdvisorNotes();
+
   // Refresh bank every 10 minutes
   setInterval(updateBankUI, 600000);
 });
+
 
 // =======================
 // CLIENT NOTIFICATION SYSTEM

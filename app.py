@@ -290,6 +290,8 @@ def edit_profile_page():
 def ai_insights_page():
     return render_template("ai_insights.html")
 
+
+
 @app.route("/budget-limit")
 @login_required
 def budget_limit_page():
@@ -322,6 +324,39 @@ def advisor_clients_page():
 def advisor_settings():
     return render_template("advisor-settings.html")
 
+# =========================================
+# AI CHAT API ENDPOINT
+# =========================================
+import os
+from openai import OpenAI
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+@app.route("/api/ai-chat", methods=["POST"])
+@login_required
+def api_ai_chat():
+    data = request.get_json(silent=True) or {}
+    msg = (data.get("message") or "").strip()
+
+    if not msg:
+        return jsonify({"reply": "Please type something to chat!"})
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are BudgetMind AI."},
+                {"role": "user", "content": msg}
+            ],
+            temperature=0.7
+        )
+        reply = response.choices[0].message.content.strip()
+
+    except Exception as e:
+        print("AI Chat error:", e)
+        reply = "⚠️ I couldn't reach the AI service right now."
+
+    return jsonify({"reply": reply})
 
 @app.route("/api/advisor/clients")
 @login_required
@@ -673,6 +708,36 @@ def api_update_client_budget_limit():
     recalc_spending_flag_for_user(str(client_user_obj_id))
 
     return jsonify({"ok": True, "limit": float(new_limit)})
+
+@app.route("/api/user/advisor_notes")
+@login_required
+def api_user_advisor_notes():
+    """Return all advisor notes LEFT FOR THE LOGGED-IN USER."""
+    user_id_str = session.get("user_id")
+
+    try:
+        user_obj_id = ObjectId(user_id_str)
+    except Exception:
+        return jsonify({"ok": False, "message": "Invalid user id"}), 400
+
+    # Find all notes where the user is the TARGET
+    notes = list(advisor_notes_col.find({
+        "client_user_id": user_obj_id
+    }).sort("created_at", -1))
+
+    formatted = []
+    for n in notes:
+        formatted.append({
+            "advisor": n.get("advisor_name", "Advisor"),
+            "note": n.get("note", ""),
+            "created_at": (
+                n["created_at"].isoformat()
+                if n.get("created_at") else None
+            )
+        })
+
+    return jsonify({"ok": True, "notes": formatted})
+
 
 @app.route("/api/advisor/notes/<client_id>")
 @login_required
