@@ -270,6 +270,15 @@ def register_page():
 def dashboard():
     return render_template("dashboard.html")
 
+
+@app.route("/compliance-dashboard.html")
+@login_required
+def compliance_dashboard():
+    # Only Compliance Regulators are allowed on this page
+    if session.get("role") != "Compliance Regulator":
+        return redirect("/dashboard.html")
+    return render_template("compliance-dashboard.html")
+
 @app.route("/settings.html")
 @login_required
 def settings_page():
@@ -1191,6 +1200,56 @@ def api_bank_disconnect():
     return jsonify({"ok": True, "connected": False})
 
 
+@app.route("/api/compliance/plaid-overview")
+@login_required
+def api_compliance_plaid_overview():
+    """
+    System-level view of Plaid-connected accounts.
+    Only Compliance Regulators can access this.
+    """
+    if session.get("role") != "Compliance Regulator":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    accounts = list(bank_accounts_col.find({}))
+    overview = []
+    total_balance = 0.0
+
+    for doc in accounts:
+        user_id_str = doc.get("user_id")
+        user_doc = None
+        if user_id_str:
+            try:
+                user_doc = users_col.find_one({"_id": ObjectId(user_id_str)})
+            except Exception:
+                user_doc = None
+
+        current_balance = float(doc.get("current_balance") or 0.0)
+        total_balance += current_balance
+
+        overview.append({
+            "user_id": user_id_str,
+            "email": (user_doc or {}).get("email"),
+            "role": normalize_role((user_doc or {}).get("role")),
+            "current_balance": current_balance,
+            "last_updated": (
+                doc.get("updated_at").isoformat()
+                if isinstance(doc.get("updated_at"), datetime)
+                else None
+            ),
+            "num_recent_transactions": len(doc.get("recent_transactions", [])),
+        })
+
+    return jsonify({
+        "ok": True,
+        "total_connected_users": len(overview),
+        "total_system_balance": round(total_balance, 2),
+        "accounts": overview,
+    })
+
+
+
+
+
 # ---------------------------
 # REGISTER
 # ---------------------------
@@ -1252,9 +1311,16 @@ def api_register():
     session["identifier"] = email or username
     session["role"] = role
 
-    redirect_url = "/advisor_dashboard" if role == "Financial Advisor" else "/dashboard.html"
+       # Decide where to send the user after registration based on role
+    if role == "Financial Advisor":
+        redirect_url = "/advisor_dashboard"
+    elif role == "Compliance Regulator":
+        redirect_url = "/compliance-dashboard.html"
+    else:
+        redirect_url = "/dashboard.html"
 
     return jsonify({"ok": True, "redirect": redirect_url}), 201
+
 
 
 
@@ -1291,12 +1357,18 @@ def api_login():
     user_role = normalize_role(user.get("role"))
     session["role"] = user_role
 
-    if user_role == "Financial Advisor":
+    # Decide post-login destination by role
+    if _is_safe_url(next_url):
+        redirect_to = next_url
+    elif user_role == "Financial Advisor":
         redirect_to = "/advisor_dashboard"
+    elif user_role == "Compliance Regulator":
+        redirect_to = "/compliance-dashboard.html"
     else:
-        redirect_to = next_url or "/dashboard.html"
+        redirect_to = "/dashboard.html"
 
     return jsonify({"ok": True, "require_2fa": False, "redirect": redirect_to})
+
 @app.route("/api/verify-2fa", methods=["POST"])
 def api_verify_2fa():
     user_id = session.get("pending_2fa_user_id")
@@ -1321,12 +1393,24 @@ def api_verify_2fa():
 
     session["user_id"] = str(user["_id"])
     session["identifier"] = user.get("email") or user.get("username")
+    user_role = normalize_role(user.get("role"))
+    session["role"] = user_role
 
     next_url = session.pop("pending_next", "")
     session.pop("pending_2fa_user_id", None)
 
-    redirect_to = next_url if _is_safe_url(next_url) else "/dashboard.html"
+    # Same redirect rules as normal login
+    if _is_safe_url(next_url):
+        redirect_to = next_url
+    elif user_role == "Financial Advisor":
+        redirect_to = "/advisor_dashboard"
+    elif user_role == "Compliance Regulator":
+        redirect_to = "/compliance-dashboard.html"
+    else:
+        redirect_to = "/dashboard.html"
+
     return jsonify({"ok": True, "redirect": redirect_to})
+
 
 
 @app.route("/api/2fa-status")
