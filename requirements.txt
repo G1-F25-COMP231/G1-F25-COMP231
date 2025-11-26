@@ -7,3 +7,4 @@ qrcode
 pillow
 gunicorn
 plaid-python
+openai>=1.0.0
