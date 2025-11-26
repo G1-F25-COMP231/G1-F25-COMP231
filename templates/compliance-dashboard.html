@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compliance Dashboard — BudgetMind AI</title>
+  <link rel="stylesheet" href="compliance-dashboard.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand__logo">💠</div>
+        <div class="brand__name">BudgetMind AI</div>
+      </div>
+
+      <nav class="nav">
+        <a href="compliance-dashboard.html" class="nav__item active">🛡️ Compliance Dashboard</a>
+        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+
+      <header class="topbar">
+        <button class="icon-btn" id="toggleSidebar">☰</button>
+        <h1 class="page-title">Compliance Metrics & Risk Monitoring</h1>
+      </header>
+
+      <section class="content">
+
+        <!-- METRIC CARDS -->
+        <div class="metrics-grid">
+
+          <div class="metric-card">
+            <span class="metric-title">Transactions Reviewed</span>
+            <span class="metric-value" id="txReviewed">1,482</span>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-title">Flagged Activities</span>
+            <span class="metric-value warning" id="flaggedCount">26</span>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-title">High-Risk Clients</span>
+            <span class="metric-value danger" id="highRiskClients">8</span>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-title">Compliance Alerts</span>
+            <span class="metric-value alert" id="alertCount">4</span>
+          </div>
+
+        </div>
+
+        <!-- RISK CHART -->
+        <div class="card chart-card">
+          <h2 class="card__title">Risk Level Distribution</h2>
+          <p class="card__subtitle">Proportion of risk categories across all client activities.</p>
+
+          <!-- UPDATED SIZE -->
+          <div class="chart-container">
+            <canvas id="riskChart"></canvas>
+          </div>
+        </div>
+
+        <!-- FLAGGED ACTIVITY TABLE -->
+        <div class="card table-card">
+          <h2 class="card__title">Flagged Activities</h2>
+
+          <table class="flag-table">
+            <thead>
+              <tr>
+                <th>Merchant</th>
+                <th>Reason</th>
+                <th>Risk</th>
+                <th>Date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+
+            <tbody>
+
+              <tr>
+                <td>CryptoBridge</td>
+                <td>Unusual spending pattern</td>
+                <td class="risk-high">High</td>
+                <td>Nov 7, 2025</td>
+                <td>Pending Review</td>
+              </tr>
+
+              <tr>
+                <td>WireBank</td>
+                <td>Large transfer flagged</td>
+                <td class="risk-critical">Critical</td>
+                <td>Nov 6, 2025</td>
+                <td>Escalated</td>
+              </tr>
+
+              <tr>
+                <td>GlobalMarket</td>
+                <td>Cross-border transaction</td>
+                <td class="risk-medium">Medium</td>
+                <td>Nov 5, 2025</td>
+                <td>Reviewed</td>
+              </tr>
+
+              <tr>
+                <td>PayQuick</td>
+                <td>Multiple failed attempts</td>
+                <td class="risk-medium">Medium</td>
+                <td>Nov 4, 2025</td>
+                <td>Pending</td>
+              </tr>
+
+            </tbody>
+
+          </table>
+        </div>
+
+        <!-- ALERTS LOG -->
+        <div class="card">
+          <h2 class="card__title">Recent Compliance Alerts</h2>
+
+          <ul class="alerts-list">
+            <li>⚠️ High-value transfer flagged for investigation.</li>
+            <li>⚠️ Possible identity mismatch detected for user ID #2231.</li>
+            <li>⚠️ Repeated failed login attempts from international IP.</li>
+            <li>⚠️ Unusual merchant activity for client #4412.</li>
+          </ul>
+        </div>
+
+      </section>
+
+      <footer class="footer">
+        <a href="#">About</a> · 
+        <a href="#">Contact Support</a> · 
+        <a href="#">Privacy</a>
+      </footer>
+
+    </main>
+  </div>
+
+  <script src="compliance-dashboard.js"></script>
+</body>
+</html>
