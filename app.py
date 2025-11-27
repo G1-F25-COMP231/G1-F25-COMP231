@@ -5,6 +5,8 @@ import qrcode
 from functools import wraps
 from datetime import datetime, date, timedelta
 from urllib.parse import urlparse, urljoin
+import csv
+from io import StringIO
 
 from flask import (
     Flask,
@@ -56,6 +58,9 @@ notes_col = db.get_collection("notes")
 clients_col = db.get_collection("clients")
 notifications_col = db.get_collection("notifications")
 advisor_notes_col = db.get_collection("advisor_notes")
+transactions_col = db.get_collection("transactions")
+flagged_col = db.get_collection("flagged_transactions")
+
 
 
 
@@ -1859,6 +1864,115 @@ def api_transaction_detail(tx_id):
             return jsonify({"ok": True, "transaction": tx})
 
     return jsonify({"ok": False, "message": "Not found"}), 404
+
+#----------------------------
+# COMPLIANCE API TRANSACTION & FLAGS
+#----------------------------
+
+@app.route("/api/compliance/save_transactions", methods=["POST"])
+@login_required
+def api_save_transactions():
+    # Only Compliance Regulators or Advisors can save system-level data
+    if session.get("role") not in ["Compliance Regulator", "Financial Advisor"]:
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id")
+    transactions = data.get("transactions")
+
+    if not user_id or not isinstance(transactions, list):
+        return jsonify({"ok": False, "message": "Invalid payload"}), 400
+
+    # Convert transactions → CSV string
+    csv_buffer = StringIO()
+    csv_writer = csv.DictWriter(csv_buffer, fieldnames=transactions[0].keys())
+    csv_writer.writeheader()
+    csv_writer.writerows(transactions)
+
+    csv_string = csv_buffer.getvalue()
+    csv_b64 = base64.b64encode(csv_string.encode("utf-8")).decode("utf-8")
+
+    # Store in DB (1 doc per user)
+    now = datetime.utcnow()
+    transactions_col.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "user_id": user_id,
+            "transactions": transactions,
+            "csv_data": csv_b64,
+            "updated_at": now,
+            "created_at": now
+        }},
+        upsert=True
+    )
+
+    return jsonify({"ok": True, "message": "Transactions saved"})
+
+
+@app.route("/api/compliance/flag_transaction", methods=["POST"])
+@login_required
+def api_flag_transaction():
+    if session.get("role") != "Compliance Regulator":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    tx = data.get("transaction")
+
+    if not tx:
+        return jsonify({"ok": False, "message": "Missing transaction"}), 400
+
+    suspicious = False
+    reasons = []
+
+    # Rule 1: Large transaction amount
+    amount = float(tx.get("amount", 0))
+    if amount > 2000:
+        suspicious = True
+        reasons.append("High-value transaction")
+
+    # Rule 2: Suspicious keywords
+    merchant = tx.get("name", "").lower()
+    if any(keyword in merchant for keyword in ["crypto", "gamble", "bet", "casino"]):
+        suspicious = True
+        reasons.append("Suspicious merchant category")
+
+    # Rule 3: Optional velocity check (not required)
+    # You can add more rules here
+
+    if suspicious:
+        flagged_col.insert_one({
+            "transaction": tx,
+            "reasons": reasons,
+            "reported": False,
+            "created_at": datetime.utcnow()
+        })
+
+    return jsonify({
+        "ok": True,
+        "suspicious": suspicious,
+        "reasons": reasons
+    })
+
+@app.route("/api/compliance/flagged")
+@login_required
+def api_flagged_transactions():
+    if session.get("role") != "Compliance Regulator":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    flagged = list(flagged_col.find({}).sort("created_at", -1))
+
+    output = []
+    for f in flagged:
+        output.append({
+            "id": str(f["_id"]),
+            "transaction": f.get("transaction"),
+            "reasons": f.get("reasons"),
+            "reported": f.get("reported", False),
+            "created_at": f["created_at"].isoformat()
+        })
+
+    return jsonify({"ok": True, "flagged": output})
+
 
 
 # ---------------------------
