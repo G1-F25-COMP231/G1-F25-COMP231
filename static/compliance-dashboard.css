@@ -193,3 +193,15 @@ body {
   text-decoration: none;
 }
 .footer a:hover { text-decoration: underline; }
+/* Smaller chart size */
+.chart-card .chart-container {
+  max-width: 380px;        /* reduce width */
+  height: 260px;           /* reduce height */
+  margin: 0 auto;          /* center it */
+  padding: 10px 0;
+}
+
+.chart-card canvas {
+  max-width: 100% !important;
+  max-height: 240px !important;
+}

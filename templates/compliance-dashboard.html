@@ -20,7 +20,7 @@
 
       <nav class="nav">
         <a href="compliance-dashboard.html" class="nav__item active">🛡️ Compliance Dashboard</a>
-        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+        <a href="/logout" class="nav__item logout">↩️ Logout</a>
       </nav>
     </aside>
 
@@ -70,6 +70,17 @@
           </div>
         </div>
 
+        <!-- ⭐️⭐️ ADDED — FLAG TREND CHART (Story #68) ⭐️⭐️ -->
+        <div class="card chart-card">
+          <h2 class="card__title">Flag Trend Over Time</h2>
+          <p class="card__subtitle">Weekly or monthly volume of suspicious activity flags.</p>
+
+          <div class="chart-container">
+            <canvas id="flagTrendChart"></canvas>
+          </div>
+        </div>
+        <!-- END ADD -->
+
         <!-- FLAGGED ACTIVITY TABLE -->
         <div class="card table-card">
           <h2 class="card__title">Flagged Activities</h2>
@@ -87,10 +98,11 @@
 
             <tbody>
 
+              <!-- ⭐️⭐️ ADDED — Severity Badge UX (Story #67) ⭐️⭐️ -->
               <tr>
                 <td>CryptoBridge</td>
                 <td>Unusual spending pattern</td>
-                <td class="risk-high">High</td>
+                <td><span class="severity-badge high">High</span></td>
                 <td>Nov 7, 2025</td>
                 <td>Pending Review</td>
               </tr>
@@ -98,7 +110,7 @@
               <tr>
                 <td>WireBank</td>
                 <td>Large transfer flagged</td>
-                <td class="risk-critical">Critical</td>
+                <td><span class="severity-badge critical">Critical</span></td>
                 <td>Nov 6, 2025</td>
                 <td>Escalated</td>
               </tr>
@@ -106,7 +118,7 @@
               <tr>
                 <td>GlobalMarket</td>
                 <td>Cross-border transaction</td>
-                <td class="risk-medium">Medium</td>
+                <td><span class="severity-badge medium">Medium</span></td>
                 <td>Nov 5, 2025</td>
                 <td>Reviewed</td>
               </tr>
@@ -114,10 +126,11 @@
               <tr>
                 <td>PayQuick</td>
                 <td>Multiple failed attempts</td>
-                <td class="risk-medium">Medium</td>
+                <td><span class="severity-badge medium">Medium</span></td>
                 <td>Nov 4, 2025</td>
                 <td>Pending</td>
               </tr>
+              <!-- END ADD -->
 
             </tbody>
 
@@ -147,6 +160,40 @@
     </main>
   </div>
 
-  <script src="compliance-dashboard.js"></script>
+  <!-- ⭐️⭐️ ADDED — TREND CHART + RISK CHART JS (Story #63 & #68) ⭐️⭐️ -->
+  <script>
+    // RISK PIE CHART
+    const riskCtx = document.getElementById('riskChart');
+    new Chart(riskCtx, {
+      type: 'pie',
+      data: {
+        labels: ['Low', 'Medium', 'High', 'Critical'],
+        datasets: [{
+          data: [52, 31, 12, 5],
+          backgroundColor: ['#3CCF91', '#F0AD4E', '#E74C3C', '#8B0000']
+        }]
+      }
+    });
+
+    // FLAG TREND LINE CHART
+    const trendCtx = document.getElementById('flagTrendChart');
+    new Chart(trendCtx, {
+      type: 'line',
+      data: {
+        labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+        datasets: [{
+          label: 'Flagged Activities',
+          data: [4, 7, 5, 10],
+          fill: false,
+          borderWidth: 3,
+          borderColor: '#0dd6ff',
+          tension: 0.3
+        }]
+      }
+    });
+  </script>
+  <!-- END ADD -->
+
+<script src="/static/compliance-dashboard.js" defer></script>
 </body>
 </html>
