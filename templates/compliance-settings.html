@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compliance Settings — BudgetMind AI</title>
+  <link rel="stylesheet" href="compliance-settings.css" />
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand__logo">💠</div>
+        <div class="brand__name">BudgetMind AI</div>
+      </div>
+
+      <nav class="nav">
+        <a href="compliance-dashboard.html" class="nav__item">🛡️ Dashboard</a>
+        <a href="transaction-table.html" class="nav__item">📄 All Transactions</a>
+        <a href="compliance-settings.html" class="nav__item active">⚙️ Compliance Settings</a>
+        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn" id="toggleSidebar">☰</button>
+        <h1 class="page-title">Privacy Controls & Audit Log Policies</h1>
+      </header>
+
+      <section class="content">
+
+        <!-- PRIVACY CONTROLS -->
+        <div class="card">
+          <h2 class="card__title">Privacy Controls</h2>
+          <p class="card__subtitle">Manage how sensitive data is handled within the system.</p>
+
+          <div class="settings-group">
+            <label class="toggle">
+              <input type="checkbox" checked />
+              <span class="slider"></span>
+              <span class="toggle-label">Enable Data Masking</span>
+            </label>
+
+            <label class="toggle">
+              <input type="checkbox" />
+              <span class="slider"></span>
+              <span class="toggle-label">Enable IP Logging</span>
+            </label>
+
+            <label class="toggle">
+              <input type="checkbox" checked />
+              <span class="slider"></span>
+              <span class="toggle-label">Auto-Anonymize Records Older Than 12 Months</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- AUDIT LOG POLICIES -->
+        <div class="card">
+          <h2 class="card__title">Audit Log Policies</h2>
+          <p class="card__subtitle">Configure retention rules and monitoring behavior for audit logs.</p>
+
+          <div class="settings-group">
+
+            <label class="setting-label">Log Retention Period</label>
+            <select class="select-input">
+              <option>30 Days</option>
+              <option selected>90 Days</option>
+              <option>180 Days</option>
+              <option>365 Days</option>
+            </select>
+
+            <label class="toggle">
+              <input type="checkbox" checked />
+              <span class="slider"></span>
+              <span class="toggle-label">Notify on Critical Events</span>
+            </label>
+
+            <label class="toggle">
+              <input type="checkbox" checked />
+              <span class="slider"></span>
+              <span class="toggle-label">Track Administrative Actions</span>
+            </label>
+
+            <button class="export-btn">⬇ Export Audit Logs</button>
+
+          </div>
+        </div>
+
+      </section>
+
+      <footer class="footer">
+        <a href="#">About</a> ·
+        <a href="#">Support</a> ·
+        <a href="#">Privacy</a>
+      </footer>
+    </main>
+
+  </div>
+
+  <script src="compliance-settings.js"></script>
+</body>
+</html>
