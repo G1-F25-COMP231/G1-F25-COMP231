@@ -1392,7 +1392,7 @@ def api_compliance_plaid_overview():
         "accounts": overview,
     })
 
-
+# Retention policy api's
 @app.route("/api/user/delete_bank_data", methods=["POST"])
 @login_required
 def api_user_delete_bank_data():
@@ -1419,7 +1419,7 @@ def api_user_delete_bank_data():
         }
     })
 
-# Retention policy api's
+
 
 @app.route("/api/compliance/retention/bank-data", methods=["POST"])
 @login_required
