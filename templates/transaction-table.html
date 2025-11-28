@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Compliance — Transaction Review</title>
-  <link rel="stylesheet" href="transaction-table.css">
+  <link rel="stylesheet" href="static/transaction-table.css">
 </head>
 
 <body>
@@ -20,7 +20,7 @@
       <nav class="nav">
         <a href="compliance-dashboard.html" class="nav__item">🛡️ Dashboard</a>
         <a href="transaction-table.html" class="nav__item active">📄 All Transactions</a>
-        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+        <a href="/logout" class="nav__item logout">Logout↩️</a>
       </nav>
     </aside>
 
@@ -36,15 +36,16 @@
 
         <!-- EXPORT + FILTER BAR -->
         <div class="export-bar">
-          <button class="export-btn">⬇ Export CSV</button>
-          <button class="export-btn">⬇ Export PDF</button>
+  <button id="exportCSV" class="export-btn">⬇ Export CSV</button>
+  <button id="exportPDF" class="export-btn">⬇ Export PDF</button>
 
-          <input
-            id="searchInput"
-            type="text"
-            placeholder="Search merchant, amount, category…"
-            class="search-box">
-        </div>
+  <input
+    id="searchInput"
+    type="text"
+    placeholder="Search merchant, amount, category…"
+    class="search-box">
+</div>
+
 
         <!-- TABLE CARD -->
         <div class="card table-card">
@@ -110,6 +111,6 @@
     </main>
   </div>
 
-  <script src="transaction-table.js"></script>
+  <script src="static/transaction-table.js"></script>
 </body>
 </html>

@@ -5,6 +5,7 @@ import qrcode
 from functools import wraps
 from datetime import datetime, date, timedelta
 from urllib.parse import urlparse, urljoin
+from flask import Response
 import csv
 from io import StringIO
 
@@ -304,6 +305,10 @@ def edit_profile_page():
 def ai_insights_page():
     return render_template("ai_insights.html")
 
+@app.route("/compliance/transactions")
+@login_required
+def transactions_page():
+    return render_template("transaction-table.html")
 
 
 @app.route("/budget-limit")
@@ -325,6 +330,12 @@ def advisor_dashboard_page():
     if session.get("role") != "Financial Advisor":
         return redirect("/dashboard.html")
     return render_template("advisor_dashboard.html")
+
+@app.route("/transaction-table.html")
+@login_required
+def transaction_table_page():
+    return render_template("transaction-table.html")
+
 
 
 @app.route("/advisor_clients")
@@ -410,6 +421,136 @@ def api_advisor_clients():
         })
 
     return jsonify(output)
+
+
+from fpdf import FPDF  # make sure to pip install fpdf
+
+@app.route("/api/compliance/export_csv")
+@login_required
+def api_export_csv():
+    import csv
+    from io import StringIO
+
+    # Only regulators or advisors
+    if session.get("role") not in ["Compliance Regulator", "Financial Advisor"]:
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    # Pull all flagged activities from DB
+    flagged = list(flagged_col.find({}))  # OR wherever your flags are stored
+
+    # Create CSV buffer
+    csv_buffer = StringIO()
+
+    # If NO data → return empty CSV with a placeholder header
+    if not flagged:
+        writer = csv.writer(csv_buffer)
+        writer.writerow(["message"])
+        writer.writerow(["No flagged activities available"])
+    else:
+        # Use keys from first document
+        fieldnames = list(flagged[0].keys())
+
+        writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for item in flagged:
+            writer.writerow(item)
+
+    csv_buffer.seek(0)
+
+    return Response(
+        csv_buffer.getvalue(),
+        mimetype="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=flagged_activities.csv"
+        }
+    )
+
+
+
+from fpdf import FPDF
+import os
+from flask import send_file
+from io import BytesIO
+
+@app.route("/api/compliance/export_pdf")
+@login_required
+def api_export_pdf():
+    from io import BytesIO
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+
+    # Role check
+    if session.get("role") not in ["Compliance Regulator", "Financial Advisor"]:
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    # Fetch all accounts
+    all_docs = list(bank_accounts_col.find({}))
+
+    # PDF buffer
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    flow = []
+
+    # Title
+    flow.append(Paragraph("<b>BudgetMind AI — System Transaction Report</b>", styles["Title"]))
+    flow.append(Spacer(1, 0.2 * inch))
+
+    # Loop accounts
+    for acct in all_docs:
+        user_id = acct.get("user_id")
+        user_doc = None
+
+        if user_id:
+            try:
+                user_doc = users_col.find_one({"_id": ObjectId(user_id)})
+            except:
+                user_doc = None
+
+        email = user_doc["email"] if user_doc else "Unknown"
+
+        # User header
+        flow.append(Paragraph(f"<b>User:</b> {email}", styles["Heading3"]))
+        flow.append(Paragraph(f"<b>Balance:</b> ${acct.get('current_balance', 0):,.2f}", styles["Normal"]))
+        flow.append(Spacer(1, 0.15 * inch))
+
+        txs = acct.get("recent_transactions", [])
+
+        if not txs:
+            flow.append(Paragraph("<i>No transactions available.</i>", styles["Italic"]))
+            flow.append(Spacer(1, 0.2 * inch))
+            continue
+
+        # Transactions
+        for tx in txs:
+            date = tx.get("date", "")
+            name = tx.get("name", "")
+            cat = tx.get("category", "")
+            amt = tx.get("amount", 0)
+
+            # ALL ASCII OR UNICODE SAFE — reportlab never crashes
+            line = f"{date} — {name} — {cat} — ${amt:,.2f}"
+
+            flow.append(Paragraph(line, styles["Normal"]))
+        
+        flow.append(Spacer(1, 0.3 * inch))
+
+    doc.build(flow)
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name="transaction_report.pdf"
+    )
+
+
+
 
 
 
@@ -1915,43 +2056,88 @@ def api_flag_transaction():
     if session.get("role") != "Compliance Regulator":
         return jsonify({"ok": False, "message": "Unauthorized"}), 403
 
-    data = request.get_json(silent=True) or {}
-    tx = data.get("transaction")
-
-    if not tx:
-        return jsonify({"ok": False, "message": "Missing transaction"}), 400
-
-    suspicious = False
+    tx = request.get_json().get("transaction", {})
     reasons = []
+    risk_level = "Low"
 
-    # Rule 1: Large transaction amount
     amount = float(tx.get("amount", 0))
-    if amount > 2000:
-        suspicious = True
-        reasons.append("High-value transaction")
-
-    # Rule 2: Suspicious keywords
     merchant = tx.get("name", "").lower()
-    if any(keyword in merchant for keyword in ["crypto", "gamble", "bet", "casino"]):
-        suspicious = True
-        reasons.append("Suspicious merchant category")
 
-    # Rule 3: Optional velocity check (not required)
-    # You can add more rules here
+    # Rule 1 — High value
+    if amount >= 5000:
+        reasons.append("Critical: High-value transaction")
+        risk_level = "Critical"
+    elif amount >= 2000:
+        reasons.append("High-value transaction")
+        risk_level = "High"
+
+    # Rule 2 — Suspicious merchant categories
+    if any(k in merchant for k in ["crypto", "casino", "bet", "gamble"]):
+        reasons.append("Suspicious merchant")
+        risk_level = "Critical"
+
+    # Rule 3 — Velocity (3+ transactions in last hour)
+    now = datetime.utcnow()
+    recent = flagged_col.count_documents({
+        "transaction.name": tx.get("name"),
+        "created_at": {"$gte": now - timedelta(hours=1)}
+    })
+    if recent >= 3:
+        reasons.append("Velocity pattern detected")
+
+    suspicious = len(reasons) > 0
 
     if suspicious:
         flagged_col.insert_one({
             "transaction": tx,
             "reasons": reasons,
+            "risk": risk_level,
             "reported": False,
-            "created_at": datetime.utcnow()
+            "created_at": now
         })
 
     return jsonify({
         "ok": True,
         "suspicious": suspicious,
+        "risk": risk_level,
         "reasons": reasons
     })
+
+@app.route("/api/compliance/summary")
+@login_required
+def api_compliance_summary():
+    if session.get("role") != "Compliance Regulator":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    flagged = list(flagged_col.find({}))
+    total = len(flagged)
+
+    critical = sum(1 for f in flagged if f.get("risk") == "Critical")
+    high = sum(1 for f in flagged if f.get("risk") == "High")
+    medium = sum(1 for f in flagged if f.get("risk") == "Medium")
+    low = sum(1 for f in flagged if f.get("risk") == "Low")
+
+    return jsonify({
+        "ok": True,
+        "total_flagged": total,
+        "risk_distribution": {
+            "critical": critical,
+            "high": high,
+            "medium": medium,
+            "low": low
+        },
+        "flagged": [
+            {
+                "merchant": f["transaction"].get("name"),
+                "amount": f["transaction"].get("amount"),
+                "risk": f.get("risk"),
+                "reasons": f.get("reasons")
+            }
+            for f in flagged
+        ]
+    })
+
+
 
 @app.route("/api/compliance/flagged")
 @login_required
