@@ -1393,7 +1393,122 @@ def api_compliance_plaid_overview():
     })
 
 
+@app.route("/api/user/delete_bank_data", methods=["POST"])
+@login_required
+def api_user_delete_bank_data():
+    """
+    Allow the logged-in user to permanently delete their own bank data
+    (Plaid connection + compliance mirror of transactions).
+    """
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"ok": False, "message": "Not logged in"}), 401
 
+    # Delete Plaid connection & cached transactions
+    bank_result = bank_accounts_col.delete_many({"user_id": user_id})
+
+    # Delete compliance mirror of this user's transactions (if any)
+    tx_result = transactions_col.delete_many({"user_id": user_id})
+
+    return jsonify({
+        "ok": True,
+        "message": "Bank data deleted",
+        "deleted": {
+            "bank_accounts": bank_result.deleted_count,
+            "compliance_transactions": tx_result.deleted_count,
+        }
+    })
+
+# Retention policy api's
+
+@app.route("/api/compliance/retention/bank-data", methods=["POST"])
+@login_required
+def api_compliance_retention_bank_data():
+    """
+    Retention policy API for bank data.
+
+    Only 'Compliance Regulator' can call this.
+
+    Payload examples:
+
+    - Delete a single user's bank data:
+      { "mode": "user", "user_id": "<user_id_string>" }
+
+    - Delete data older than 365 days:
+      { "mode": "age", "older_than_days": 365 }
+
+    - Delete ALL bank data (dangerous / audit-protected):
+      { "mode": "all" }
+    """
+    if session.get("role") != "Compliance Regulator":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    mode = (data.get("mode") or "user").lower()
+
+    deleted = {
+        "bank_accounts": 0,
+        "compliance_transactions": 0,
+    }
+
+    # ---------------------------
+    # MODE: delete by user_id
+    # ---------------------------
+    if mode == "user":
+        user_id = data.get("user_id")
+        if not user_id:
+            return jsonify({"ok": False, "message": "user_id required for mode='user'"}), 400
+
+        bank_res = bank_accounts_col.delete_many({"user_id": user_id})
+        tx_res = transactions_col.delete_many({"user_id": user_id})
+
+        deleted["bank_accounts"] = bank_res.deleted_count
+        deleted["compliance_transactions"] = tx_res.deleted_count
+
+    # ---------------------------
+    # MODE: delete by age
+    # ---------------------------
+    elif mode == "age":
+        try:
+            older_than_days = int(data.get("older_than_days", 365))
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "message": "older_than_days must be an integer"}), 400
+
+        cutoff = datetime.utcnow() - timedelta(days=older_than_days)
+
+        # bank_accounts_col uses updated_at for freshness
+        bank_res = bank_accounts_col.delete_many({
+            "updated_at": {"$lt": cutoff}
+        })
+
+        # transactions_col also has updated_at
+        tx_res = transactions_col.delete_many({
+            "updated_at": {"$lt": cutoff}
+        })
+
+        deleted["bank_accounts"] = bank_res.deleted_count
+        deleted["compliance_transactions"] = tx_res.deleted_count
+
+    # ---------------------------
+    # MODE: delete everything
+    # ---------------------------
+    elif mode == "all":
+        bank_res = bank_accounts_col.delete_many({})
+        tx_res = transactions_col.delete_many({})
+
+        deleted["bank_accounts"] = bank_res.deleted_count
+        deleted["compliance_transactions"] = tx_res.deleted_count
+
+    else:
+        return jsonify({"ok": False, "message": "Invalid mode. Use 'user', 'age', or 'all'."}), 400
+
+    return jsonify({
+        "ok": True,
+        "mode": mode,
+        "deleted": deleted
+    })
+
+#retention policies end
 
 
 # ---------------------------
