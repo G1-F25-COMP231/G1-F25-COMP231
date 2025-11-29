@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Compliance Settings — BudgetMind AI</title>
-  <link rel="stylesheet" href="compliance-settings.css" />
+  <link rel="stylesheet" href="static/compliance-settings.css" />
 </head>
 
 <body>
@@ -21,7 +21,7 @@
         <a href="compliance-dashboard.html" class="nav__item">🛡️ Dashboard</a>
         <a href="transaction-table.html" class="nav__item">📄 All Transactions</a>
         <a href="compliance-settings.html" class="nav__item active">⚙️ Compliance Settings</a>
-        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+        <a href="/logout" class="nav__item logout">↩️ Logout</a>
       </nav>
     </aside>
 
@@ -40,23 +40,25 @@
           <p class="card__subtitle">Manage how sensitive data is handled within the system.</p>
 
           <div class="settings-group">
+
             <label class="toggle">
-              <input type="checkbox" checked />
+              <input id="toggleMasking" type="checkbox" checked />
               <span class="slider"></span>
               <span class="toggle-label">Enable Data Masking</span>
             </label>
 
             <label class="toggle">
-              <input type="checkbox" />
+              <input id="toggleIpLogging" type="checkbox" />
               <span class="slider"></span>
               <span class="toggle-label">Enable IP Logging</span>
             </label>
 
             <label class="toggle">
-              <input type="checkbox" checked />
+              <input id="toggleAutoAnon" type="checkbox" checked />
               <span class="slider"></span>
               <span class="toggle-label">Auto-Anonymize Records Older Than 12 Months</span>
             </label>
+
           </div>
         </div>
 
@@ -68,26 +70,26 @@
           <div class="settings-group">
 
             <label class="setting-label">Log Retention Period</label>
-            <select class="select-input">
-              <option>30 Days</option>
-              <option selected>90 Days</option>
-              <option>180 Days</option>
-              <option>365 Days</option>
+            <select class="select-input" id="retentionSelect">
+              <option value="30">30 Days</option>
+              <option value="90" selected>90 Days</option>
+              <option value="180">180 Days</option>
+              <option value="365">365 Days</option>
             </select>
 
             <label class="toggle">
-              <input type="checkbox" checked />
+              <input id="toggleCritical" type="checkbox" checked />
               <span class="slider"></span>
               <span class="toggle-label">Notify on Critical Events</span>
             </label>
 
             <label class="toggle">
-              <input type="checkbox" checked />
+              <input id="toggleAdminActions" type="checkbox" checked />
               <span class="slider"></span>
               <span class="toggle-label">Track Administrative Actions</span>
             </label>
 
-            <button class="export-btn">⬇ Export Audit Logs</button>
+            <button id="exportLogs" class="export-btn">⬇ Export Audit Logs</button>
 
           </div>
         </div>
@@ -100,9 +102,20 @@
         <a href="#">Privacy</a>
       </footer>
     </main>
-
   </div>
 
-  <script src="compliance-settings.js"></script>
+  <!-- WARNING DIALOG -->
+  <div id="warningModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>⚠ Warning</h3>
+      <p id="warningText">Are you sure you want to disable this?</p>
+      <div class="modal-actions">
+        <button id="cancelBtn" class="btn cancel">Cancel</button>
+        <button id="confirmBtn" class="btn danger">Yes, Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="static/compliance-settings.js"></script>
 </body>
 </html>

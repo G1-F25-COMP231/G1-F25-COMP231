@@ -61,6 +61,7 @@ notifications_col = db.get_collection("notifications")
 advisor_notes_col = db.get_collection("advisor_notes")
 transactions_col = db.get_collection("transactions")
 flagged_col = db.get_collection("flagged_transactions")
+compliance_settings_col = db.get_collection("compliance_settings")
 
 
 
@@ -261,6 +262,53 @@ def _simplify_transactions(tx_payload: dict):
     return result
 
 
+@app.route("/api/compliance/save_settings", methods=["POST"])
+@login_required
+def api_compliance_save_settings():
+    if session.get("role") != "Compliance Regulator":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    data = request.get_json() or {}
+
+    compliance_settings_col.update_one(
+        {"_id": "global"},   # single global compliance policy
+        {"$set": {
+            "enable_data_masking": data.get("enable_data_masking", False),
+            "enable_ip_logging": data.get("enable_ip_logging", False),
+            "auto_anonymize": data.get("auto_anonymize", False),
+            "notify_critical": data.get("notify_critical", False),
+            "track_admin": data.get("track_admin", False),
+            "retention_days": int(data.get("retention_days", 90)),
+            "updated_at": datetime.utcnow()
+        }},
+        upsert=True
+    )
+
+    return jsonify({"ok": True})
+
+
+@app.route("/api/compliance/get_settings")
+@login_required
+def api_compliance_get_settings():
+    if session.get("role") != "Compliance Regulator":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    doc = compliance_settings_col.find_one({"_id": "global"}) or {}
+
+    return jsonify({
+        "ok": True,
+        "settings": {
+            "enable_data_masking": doc.get("enable_data_masking", True),
+            "enable_ip_logging": doc.get("enable_ip_logging", False),
+            "auto_anonymize": doc.get("auto_anonymize", True),
+            "notify_critical": doc.get("notify_critical", True),
+            "track_admin": doc.get("track_admin", True),
+            "retention_days": doc.get("retention_days", 90),
+        }
+    })
+
+
+
 @app.route("/")
 def login_page():
     return render_template("login.html")
@@ -310,6 +358,13 @@ def ai_insights_page():
 def transactions_page():
     return render_template("transaction-table.html")
 
+@app.route("/compliance-settings.html")
+@login_required
+def compliance_settings_page():
+    # Only Compliance Regulators can access this settings page
+    if session.get("role") != "Compliance Regulator":
+        return redirect("/dashboard.html")
+    return render_template("compliance-settings.html")
 
 @app.route("/budget-limit")
 @login_required
