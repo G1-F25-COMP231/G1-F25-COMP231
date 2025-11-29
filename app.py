@@ -431,6 +431,74 @@ def budget_limit_page():
 def entry_page():
     return render_template("entry.html")
 
+@app.route("/flagged_users.html")
+@login_required
+def flagged_users_page():
+    if session.get("role") != "Compliance Regulator":
+        return redirect("/dashboard.html")
+    return render_template("flagged_users.html")
+
+
+@app.route("/compliance/user/<user_id>")
+@login_required
+def compliance_user_page(user_id):
+    if session.get("role") != "Compliance Regulator":
+        return redirect("/dashboard.html")
+
+    user = users_col.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        return "User not found", 404
+
+    return render_template("compliance_user.html", user=user)
+
+
+# ============================================
+# API — FLAGGED USERS (aggregated by user)
+# ============================================
+@app.route("/api/compliance/flagged_users")
+@login_required
+def api_flagged_users():
+    if session.get("role") != "Compliance Regulator":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    pipeline = [
+        {
+            "$group": {
+                "_id": "$transaction.user_id",
+                "flagCount": {"$sum": 1},
+                "lastActivity": {"$max": "$created_at"},
+                "risks": {"$push": "$risk"}
+            }
+        }
+    ]
+
+    raw = list(flagged_col.aggregate(pipeline))
+    output = []
+
+    for u in raw:
+        user_doc = users_col.find_one({"_id": ObjectId(u["_id"])}) if u["_id"] else None
+
+        # Determine highest-risk level
+        risks = u.get("risks", [])
+        if "Critical" in risks:
+            risk = "Critical"
+        elif "High" in risks:
+            risk = "High"
+        elif "Medium" in risks:
+            risk = "Medium"
+        else:
+            risk = "Low"
+
+        output.append({
+            "user_id": str(u["_id"]),
+            "name": user_doc.get("fullName") if user_doc else "Unknown",
+            "email": user_doc.get("email") if user_doc else "Unknown",
+            "flagged_transactions": u["flagCount"],
+            "risk": risk,
+            "last_activity": u["lastActivity"].isoformat() if u["lastActivity"] else None
+        })
+
+    return jsonify({"ok": True, "users": output})
 
 
 @app.route("/advisor_dashboard")
