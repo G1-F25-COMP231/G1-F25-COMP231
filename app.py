@@ -62,7 +62,7 @@ advisor_notes_col = db.get_collection("advisor_notes")
 transactions_col = db.get_collection("transactions")
 flagged_col = db.get_collection("flagged_transactions")
 compliance_settings_col = db.get_collection("compliance_settings")
-
+audit_logs_col = db.get_collection("audit_logs")
 
 
 
@@ -154,6 +154,60 @@ def login_required(view_func):
         next_url = request.full_path if request.query_string else request.path
         return redirect(url_for("login_page", next=next_url))
     return wrapped
+#audit logs
+def write_audit_log(action, details=None, status=None):
+    """
+    Generic audit logger. Call this from routes, or use the after_request
+    hook below to automatically log all /api/* calls.
+
+    action: short string describing what happened (e.g. "HTTP_API_CALL", "LOGIN_FAILED")
+    details: optional dict with extra info
+    status: HTTP status code (int)
+    """
+    try:
+        doc = {
+            "timestamp": datetime.utcnow(),
+            "user_id": session.get("user_id"),
+            "role": session.get("role"),
+            "action": action,
+            "ip": request.remote_addr,
+            "path": request.path,
+            "method": request.method,
+            "status": status,
+            "details": details or {},
+        }
+        audit_logs_col.insert_one(doc)
+    except Exception as e:
+        # Never break the main app just because logging failed
+        print("AUDIT LOG ERROR:", e)
+
+@app.after_request
+def audit_after_request(response):
+    """
+    Automatically write an audit log entry for every /api/* request.
+    This gives you a full audit trail without touching each route.
+    """
+    try:
+        path = request.path or ""
+        # Only log API calls, skip static/assets
+        if path.startswith("/api/"):
+            payload = None
+            if request.method in ("POST", "PUT", "PATCH"):
+                # Don't crash if body isn't JSON
+                payload = request.get_json(silent=True)
+
+            write_audit_log(
+                action="HTTP_API_CALL",
+                details={
+                    "query": request.args.to_dict(),
+                    "json": payload,
+                },
+                status=response.status_code,
+            )
+    except Exception as e:
+        print("AUDIT AFTER_REQUEST ERROR:", e)
+
+    return response
 
 
 def hash_password(password: str) -> str:
@@ -2329,6 +2383,81 @@ def api_flagged_transactions():
 
     return jsonify({"ok": True, "flagged": output})
 
+@app.route("/api/compliance/audit_logs")
+@login_required
+def api_compliance_audit_logs():
+    """
+    Compliance view of audit logs.
+
+    Optional query params:
+      - user_id=<string>  -> filter by a specific user
+      - action=<string>   -> filter by action (e.g. "HTTP_API_CALL")
+      - limit=<int>       -> max number of logs (1–500, default 100)
+    """
+    if session.get("role") != "Compliance Regulator":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    # Filters
+    q = {}
+    user_id = request.args.get("user_id")
+    action = request.args.get("action")
+
+    if user_id:
+        q["user_id"] = user_id
+    if action:
+        q["action"] = action
+
+    # Limit
+    try:
+        limit = int(request.args.get("limit", 100))
+    except ValueError:
+        limit = 100
+    limit = max(1, min(limit, 500))
+
+    cursor = audit_logs_col.find(q).sort("timestamp", -1).limit(limit)
+
+    logs = []
+    for log in cursor:
+        logs.append({
+            "id": str(log.get("_id")),
+            "timestamp": log.get("timestamp").isoformat() if log.get("timestamp") else None,
+            "user_id": log.get("user_id"),
+            "role": log.get("role"),
+            "action": log.get("action"),
+            "ip": log.get("ip"),
+            "path": log.get("path"),
+            "method": log.get("method"),
+            "status": log.get("status"),
+            "details": log.get("details", {}),
+        })
+
+    return jsonify({"ok": True, "logs": logs})
+
+@app.route("/api/audit_logs/me")
+@login_required
+def api_my_audit_logs():
+    user_id = session.get("user_id")
+    try:
+        limit = int(request.args.get("limit", 50))
+    except ValueError:
+        limit = 50
+    limit = max(1, min(limit, 200))
+
+    cursor = audit_logs_col.find({"user_id": user_id}).sort("timestamp", -1).limit(limit)
+
+    logs = []
+    for log in cursor:
+        logs.append({
+            "id": str(log.get("_id")),
+            "timestamp": log.get("timestamp").isoformat() if log.get("timestamp") else None,
+            "action": log.get("action"),
+            "path": log.get("path"),
+            "method": log.get("method"),
+            "status": log.get("status"),
+            "details": log.get("details", {}),
+        })
+
+    return jsonify({"ok": True, "logs": logs})
 
 
 # ---------------------------
