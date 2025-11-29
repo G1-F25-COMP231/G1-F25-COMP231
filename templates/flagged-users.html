@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flagged Users — Compliance Review</title>
+  <link rel="stylesheet" href="flagged-users.css">
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand__logo">💠</div>
+        <div class="brand__name">BudgetMind AI</div>
+      </div>
+
+      <nav class="nav">
+        <a href="compliance-dashboard.html" class="nav__item">🛡️ Dashboard</a>
+        <a href="transaction-table.html" class="nav__item">📄 All Transactions</a>
+        <a href="flagged-users.html" class="nav__item active">🚨 Flagged Users</a>
+        <a href="compliance-settings.html" class="nav__item">⚙️ Settings</a>
+        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+
+      <header class="topbar">
+        <button class="icon-btn" id="toggleSidebar">☰</button>
+        <h1 class="page-title">Flagged Users — Fraud Investigation</h1>
+      </header>
+
+      <section class="content">
+
+        <!-- FILTER / EXPORT BAR -->
+        <div class="filter-bar">
+          <input id="searchInput" type="text" class="search-box" placeholder="Search user name, email, ID...">
+
+          <select id="riskFilter" class="select-input">
+            <option value="all">All Risk Levels</option>
+            <option value="low">Low Risk</option>
+            <option value="medium">Medium Risk</option>
+            <option value="high">High Risk</option>
+            <option value="critical">Critical Risk</option>
+          </select>
+
+          <button class="export-btn">⬇ Export CSV</button>
+        </div>
+
+        <!-- MAIN TABLE -->
+        <div class="card table-card">
+
+          <table class="flag-user-table">
+            <thead>
+              <tr>
+                <th>User ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Flagged Tx Count</th>
+                <th>Risk Level</th>
+                <th>Last Activity</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+
+            <tbody>
+
+              <tr data-risk="high">
+                <td>USR-00421</td>
+                <td>Alex Marino</td>
+                <td>alex.m@example.com</td>
+                <td>12</td>
+                <td class="risk-high">High</td>
+                <td>Nov 7, 2025</td>
+                <td><button class="view-btn">View Profile</button></td>
+              </tr>
+
+              <tr data-risk="critical">
+                <td>USR-00287</td>
+                <td>Maya Chen</td>
+                <td>mchen@example.com</td>
+                <td>27</td>
+                <td class="risk-critical">Critical</td>
+                <td>Nov 6, 2025</td>
+                <td><button class="view-btn danger">Review Urgently</button></td>
+              </tr>
+
+              <tr data-risk="medium">
+                <td>USR-00914</td>
+                <td>Jordan Patel</td>
+                <td>jpatel@example.com</td>
+                <td>5</td>
+                <td class="risk-medium">Medium</td>
+                <td>Nov 4, 2025</td>
+                <td><button class="view-btn">View Profile</button></td>
+              </tr>
+
+              <tr data-risk="low">
+                <td>USR-00651</td>
+                <td>Sophia Kline</td>
+                <td>skline@example.com</td>
+                <td>1</td>
+                <td class="risk-low">Low</td>
+                <td>Nov 2, 2025</td>
+                <td><button class="view-btn">View Profile</button></td>
+              </tr>
+
+            </tbody>
+          </table>
+
+        </div>
+
+      </section>
+
+      <footer class="footer">
+        <a href="#">About</a> · 
+        <a href="#">Support</a> · 
+        <a href="#">Privacy</a>
+      </footer>
+
+    </main>
+
+  </div>
+
+  <script src="flagged-users.js"></script>
+</body>
+</html>
