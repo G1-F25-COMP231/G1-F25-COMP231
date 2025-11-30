@@ -8,6 +8,7 @@ from urllib.parse import urlparse, urljoin
 from flask import Response
 import csv
 from io import StringIO
+from huggingface_hub import InferenceClient
 
 from flask import (
     Flask,
@@ -49,6 +50,17 @@ MONGO_URI = os.getenv("MONGO_URI")
 if not MONGO_URI:
     raise RuntimeError("MONGO_URI is not set in .env")
 
+HF_API_KEY = os.getenv("AI_API_KEY")
+if not HF_API_KEY:
+    raise RuntimeError("AI_API_KEY is not set in .env")
+
+HF_MODEL_ID = "Qwen/Qwen2.5-7B-Instruct-1M"
+
+hf_client = InferenceClient(
+    model=HF_MODEL_ID,
+    token=HF_API_KEY,
+)
+
 mongo_client = MongoClient(MONGO_URI)
 db = mongo_client.get_database("BudgetMindAI")
 users_col = db.get_collection("users")
@@ -63,7 +75,7 @@ transactions_col = db.get_collection("transactions")
 flagged_col = db.get_collection("flagged_transactions")
 compliance_settings_col = db.get_collection("compliance_settings")
 audit_logs_col = db.get_collection("audit_logs")
-
+financially_vulnerable_col = db.get_collection("financially_vulnerable_users")
 
 
 
@@ -340,6 +352,206 @@ def api_compliance_save_settings():
 
     return jsonify({"ok": True})
 
+@app.route("/api/compliance/financially_vulnerable/scan", methods=["POST"])
+@login_required
+def api_financially_vulnerable_scan():
+    """
+    Scan all Plaid-connected users and determine whether they are
+    financially vulnerable based on net income remaining.
+
+    Rules (over a given time window):
+      - net = income - expenses
+      - percent_left = (net / income) * 100
+
+      - percent_left <= 20%          -> HIGH risk
+      - 20% < percent_left <= 40%    -> MEDIUM risk
+      - 40% < percent_left <= 50%    -> LOW risk
+      - percent_left >= 51%          -> not considered vulnerable
+
+    For every vulnerable user we:
+      - store a doc in financially_vulnerable_users collection
+      - update any advisor-client links (clients_col) to set priority to
+        high/medium/low if the client has accepted the advisor.
+    """
+    if session.get("role") != "Compliance Regulator":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    # Window in days to look back at transactions (default 30 days)
+    try:
+        days = int(data.get("days", 30))
+    except (TypeError, ValueError):
+        days = 30
+
+    cutoff_date = datetime.utcnow().date() - timedelta(days=days)
+
+    # Clear previous snapshot so this collection always reflects
+    # the latest vulnerability assessment.
+    financially_vulnerable_col.delete_many({})
+
+    vulnerable_results = []
+    scanned_accounts = 0
+
+    # Iterate all Plaid-connected accounts
+    for acct in bank_accounts_col.find({}):
+        user_id_str = acct.get("user_id")
+        if not user_id_str:
+            continue
+
+        try:
+            user_obj_id = ObjectId(user_id_str)
+        except Exception:
+            continue
+
+        user_doc = users_col.find_one({"_id": user_obj_id})
+        if not user_doc:
+            continue
+
+        txs = acct.get("recent_transactions", [])
+        if not txs:
+            continue
+
+        scanned_accounts += 1
+
+        # Reuse your existing Plaid summary builder to get income/expenses
+        summary = _build_plaid_summary(txs, cutoff_date)
+        total_income = float(sum(summary.get("income", [])))
+        total_expenses = float(sum(summary.get("expenses", [])))  # already positive
+
+        # If we truly have no income and no expenses in this window, skip
+        if total_income <= 0 and total_expenses <= 0:
+            continue
+
+        # net = income - expenses
+        net = total_income - total_expenses
+
+        # Percent of income left. If no income but expenses exist,
+        # treat as 0% left (worst case).
+        if total_income <= 0:
+            percent_left = 0.0
+        else:
+            percent_left = (net / total_income) * 100.0
+
+        # Determine risk level
+        risk_level = None
+        if percent_left <= 20:
+            risk_level = "high"
+        elif percent_left <= 40:
+            risk_level = "medium"
+        elif percent_left <= 50:
+            risk_level = "low"
+        else:
+            # 51% or more left -> not financially vulnerable
+            continue
+
+        # Build stored document
+        doc = {
+            "user_id": user_id_str,
+            "username": user_doc.get("username"),
+            "email": user_doc.get("email"),
+            "fullName": user_doc.get("fullName"),
+            "percent_income_left": round(percent_left, 2),
+            "total_income": round(total_income, 2),
+            "total_expenses": round(total_expenses, 2),
+            "net_amount": round(net, 2),
+            "current_balance": float(acct.get("current_balance") or 0.0),
+            "risk_level": risk_level,
+            "computed_at": datetime.utcnow(),
+        }
+
+        # Upsert into financially_vulnerable_users so we have a
+        # persistent snapshot collection regulators/advisors can query.
+        financially_vulnerable_col.update_one(
+            {"user_id": user_id_str},
+            {"$set": doc},
+            upsert=True,
+        )
+
+        # Update advisor priority for any accepted advisor-client links
+        clients_col.update_many(
+            {"user_id": user_obj_id, "status": "Accepted"},
+            {"$set": {"priority": risk_level}}
+        )
+
+        vulnerable_results.append(doc)
+
+    return jsonify({
+        "ok": True,
+        "window_days": days,
+        "scanned_accounts": scanned_accounts,
+        "vulnerable_count": len(vulnerable_results),
+        "vulnerable_users": vulnerable_results,
+    })
+
+@app.route("/api/compliance/financially_vulnerable", methods=["GET"])
+@login_required
+def api_get_financially_vulnerable():
+    """
+    Return the most recently stored snapshot of financially vulnerable users.
+    Does NOT re-run the scan; call /api/compliance/financially_vulnerable/scan
+    to recompute and refresh.
+    """
+    if session.get("role") != "Compliance Regulator":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    risk_filter = (request.args.get("risk") or "").lower()
+    query = {}
+    if risk_filter in ("high", "medium", "low"):
+        query["risk_level"] = risk_filter
+
+    docs = list(financially_vulnerable_col.find(query).sort("percent_income_left", 1))
+
+    result = []
+    for d in docs:
+        result.append({
+            "user_id": d.get("user_id"),
+            "username": d.get("username"),
+            "email": d.get("email"),
+            "fullName": d.get("fullName"),
+            "percent_income_left": d.get("percent_income_left"),
+            "total_income": d.get("total_income"),
+            "total_expenses": d.get("total_expenses"),
+            "net_amount": d.get("net_amount"),
+            "current_balance": d.get("current_balance"),
+            "risk_level": d.get("risk_level"),
+            "computed_at": d.get("computed_at").isoformat() if d.get("computed_at") else None,
+        })
+
+    return jsonify({"ok": True, "vulnerable_users": result})
+
+@app.route("/api/user/financial_status")
+@login_required
+def api_user_financial_status():
+    """
+    Return whether the currently logged-in *regular user* is considered
+    financially vulnerable, based on the latest scan results stored in
+    financially_vulnerable_users.
+
+    If there is no record, we treat the user as *not* vulnerable.
+    """
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"ok": False, "message": "Not logged in"}), 401
+
+    doc = financially_vulnerable_col.find_one({"user_id": user_id})
+    if not doc:
+        return jsonify({
+            "ok": True,
+            "vulnerable": False
+        })
+
+    return jsonify({
+        "ok": True,
+        "vulnerable": True,
+        "risk_level": doc.get("risk_level"),
+        "percent_income_left": doc.get("percent_income_left"),
+        "current_balance": doc.get("current_balance"),
+        "total_income": doc.get("total_income"),
+        "total_expenses": doc.get("total_expenses"),
+        "net_amount": doc.get("net_amount"),
+        "computed_at": doc.get("computed_at").isoformat() if doc.get("computed_at") else None,
+    })
+
 
 @app.route("/api/compliance/get_settings")
 @login_required
@@ -451,6 +663,115 @@ def compliance_user_page(user_id):
 
     return render_template("compliance_user.html", user=user)
 
+@app.route("/api/user/advisors")
+@login_required
+def api_user_advisors():
+    """
+    Return all Financial Advisor accounts for the dropdown on the
+    regular user's settings page.
+    """
+    # Only regular users really need this, but it's harmless for others.
+    # You can restrict if you want:
+    # if session.get("role") != "Average User":
+    #     return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    advisors = list(users_col.find({
+        "role": "Financial Advisor"   # role stored via normalize_role
+    }))
+
+    items = []
+    for a in advisors:
+        items.append({
+            "id": str(a["_id"]),
+            "name": a.get("fullName") or a.get("username") or "Advisor",
+            "email": a.get("email", "")
+        })
+
+    return jsonify({"ok": True, "advisors": items})
+
+@app.route("/api/user/select_advisor", methods=["POST"])
+@login_required
+def api_user_select_advisor():
+    """
+    Regular user selects an advisor from the dropdown.
+
+    Creates a clients_col row with:
+      - user_id = current user
+      - advisor_id = chosen advisor
+      - status = 'Accepted' (user is explicitly consenting)
+      - priority = derived from vulnerability risk (high/medium/low)
+    """
+    if session.get("role") != "Average User":
+        return jsonify({"ok": False, "message": "Only regular users can add an advisor"}), 403
+
+    data = request.get_json(silent=True) or {}
+    advisor_id_str = data.get("advisor_id")
+
+    if not advisor_id_str:
+        return jsonify({"ok": False, "message": "advisor_id is required"}), 400
+
+    user_id_str = session.get("user_id")
+    try:
+        user_obj_id = ObjectId(user_id_str)
+        advisor_obj_id = ObjectId(advisor_id_str)
+    except Exception:
+        return jsonify({"ok": False, "message": "Invalid id"}), 400
+
+    # Check advisor exists & is actually an advisor
+    advisor_doc = users_col.find_one({"_id": advisor_obj_id})
+    if not advisor_doc:
+        return jsonify({"ok": False, "message": "Advisor not found"}), 404
+
+    if normalize_role(advisor_doc.get("role")) != "Financial Advisor":
+        return jsonify({"ok": False, "message": "Selected user is not a Financial Advisor"}), 400
+
+    # Prevent duplicate advisor-client links
+    existing = clients_col.find_one({
+        "advisor_id": advisor_obj_id,
+        "user_id": user_obj_id
+    })
+    if existing:
+        return jsonify({
+            "ok": False,
+            "message": "You are already a client of this advisor."
+        }), 409
+
+    # Try to pull latest vulnerability snapshot for priority:
+    vuln_doc = financially_vulnerable_col.find_one({"user_id": user_id_str})
+    risk_level = (vuln_doc or {}).get("risk_level", "low")  # "high" / "medium" / "low"
+
+    now = datetime.utcnow()
+
+    clients_col.insert_one({
+        "user_id": user_obj_id,
+        "advisor_id": advisor_obj_id,
+        "priority": risk_level,
+        "status": "Accepted",
+        "notes": "",
+        "created_at": now,
+        "permission_requested_at": now,
+        "permission_updated_at": now,
+        "budget_edit_status": "none",
+    })
+
+    # Optional: notify the advisor that a new client has been added
+    user_doc = users_col.find_one({"_id": user_obj_id})
+    user_name = user_doc.get("fullName", "A user") if user_doc else "A user"
+
+    notifications_col.insert_one({
+        "user_id": advisor_obj_id,
+        "message": f"{user_name} has added you as their advisor.",
+        "type": "new_client",
+        "created_at": datetime.utcnow(),
+        "read": False,
+    })
+
+    return jsonify({
+        "ok": True,
+        "message": "Advisor added successfully. They will now see you in their client list.",
+        "priority": risk_level,
+    })
+
 
 # ============================================
 # API — FLAGGED USERS (aggregated by user)
@@ -529,10 +850,99 @@ def advisor_settings():
 # =========================================
 # AI CHAT API ENDPOINT
 # =========================================
-import os
-from openai import OpenAI
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+def build_budget_prompt(user_id: str, user_message: str, max_transactions: int = 25) -> str:
+    """
+    Build a big text prompt for the LLM using the user's net income,
+    total income, total expenses and recent transactions.
+
+    Prefers Plaid data; falls back to manual entries if no bank connection.
+    """
+    # Get a display name
+    user_doc = users_col.find_one({"_id": ObjectId(user_id)})
+    display_name = (
+        (user_doc or {}).get("fullName")
+        or (user_doc or {}).get("username")
+        or "the user"
+    )
+
+    # Try Plaid first
+    bank_doc = bank_accounts_col.find_one({"user_id": user_id})
+    tx_lines: list[str] = []
+    total_income = 0.0
+    total_expenses = 0.0
+
+    if bank_doc and bank_doc.get("recent_transactions"):
+        txs = bank_doc["recent_transactions"]
+
+        # Compute totals
+        for tx in txs:
+            amount = float(tx.get("amount") or 0)
+            name = tx.get("name", "")
+            cat = tx.get("category", "Other")
+            is_income = _classify_direction(name, cat)
+
+            signed = amount if is_income else -amount
+            if signed >= 0:
+                total_income += signed
+            else:
+                total_expenses += abs(signed)
+
+        # Most recent first, limit to max_transactions
+        txs_sorted = sorted(txs, key=lambda x: x.get("date", ""), reverse=True)[:max_transactions]
+        for tx in txs_sorted:
+            tx_lines.append(
+                f"{tx.get('date')} | {tx.get('name')} | {tx.get('category')} | {tx.get('amount')}"
+            )
+    else:
+        # Fallback: manual entries collection
+        entries = list(entries_col.find({"user_id": user_id}).sort("created_at", -1))
+        for e in entries:
+            amount = float(e.get("amount", 0) or 0)
+            typ = str(e.get("type", "")).lower()
+            cat = e.get("category", "Other")
+
+            if typ == "income":
+                total_income += amount
+            elif typ == "expense":
+                total_expenses += amount
+
+            tx_lines.append(
+                f"{e.get('created_at')} | {typ} | {cat} | {amount}"
+            )
+
+        tx_lines = tx_lines[:max_transactions]
+
+    net_income = total_income - total_expenses
+
+    tx_block = (
+        "\n".join(f"- {line}" for line in tx_lines)
+        if tx_lines
+        else "No transactions available in this period."
+    )
+
+    # Your requested style of prompt:
+    prompt = f"""Based on {display_name}'s net income: {net_income:.2f},
+total expenses: {total_expenses:.2f}, total income: {total_income:.2f},
+and the following recent transactions (up to {max_transactions}):
+
+{tx_block}
+
+Formulate a budget plan the user could use to better improve their finances in a general sense.
+Be specific, including details they should avoid or reduce. For example:
+"spend less on eating out to save better, as the transaction 'Uber Eats' was seen 4 times this month,
+which when reduced could lead to better finances."
+
+Requirements:
+- Focus ONLY on budgeting and spending habits (no investing, tax or legal advice).
+- Call out any categories or merchants that look high.
+- Give 5–10 concrete, numbered action steps.
+- Keep the tone supportive and non-judgmental.
+- Keep the answer under 400 words.
+
+The user also said: "{user_message}".
+"""
+    return prompt
 
 @app.route("/api/ai-chat", methods=["POST"])
 @login_required
@@ -543,16 +953,37 @@ def api_ai_chat():
     if not msg:
         return jsonify({"reply": "Please type something to chat!"})
 
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"reply": "You must be logged in to use AI chat."}), 401
+
+    # Build a rich prompt from DB + the user message
+    budget_prompt = build_budget_prompt(user_id, msg)
+
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        response = hf_client.chat_completion(
             messages=[
-                {"role": "system", "content": "You are BudgetMind AI."},
-                {"role": "user", "content": msg}
+                {
+                    "role": "system",
+                    "content": (
+                        "You are BudgetMind AI, a friendly but serious personal-finance coach. "
+                        "You ONLY give safe budgeting and spending advice based on the data provided. "
+                        "Do not give investing, tax, or legal advice."
+                        "You Have a bright personality but a realistic one."
+                        "You can talk to the users like a normal person."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": budget_prompt,
+                },
             ],
-            temperature=0.7
+            max_tokens=800,
+            temperature=0.7,
         )
-        reply = response.choices[0].message.content.strip()
+
+        # huggingface_hub ChatCompletionOutput
+        reply = response.choices[0].message.content
 
     except Exception as e:
         print("AI Chat error:", e)

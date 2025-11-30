@@ -7,6 +7,6 @@ qrcode
 pillow
 gunicorn
 plaid-python
-openai>=1.0.0
 fpdf
 reportlab
+huggingface_hub>=0.22.2
