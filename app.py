@@ -922,7 +922,7 @@ def build_budget_prompt(user_id: str, user_message: str, max_transactions: int =
     )
 
     # Your requested style of prompt:
-    prompt = f"""Based on {display_name}'s net income: {net_income:.2f},
+    prompt = f"""Be a friendly ai chat bot assistant and if requested to improve budget or finances or questions about either Based on {display_name}'s net income: {net_income:.2f},
 total expenses: {total_expenses:.2f}, total income: {total_income:.2f},
 and the following recent transactions (up to {max_transactions}):
 
