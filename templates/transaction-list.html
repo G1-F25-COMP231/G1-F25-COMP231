@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Transactions — BudgetMind AI</title>
+  <link rel="stylesheet" href="transaction-list.css">
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand__logo">💠</div>
+        <div class="brand__name">BudgetMind AI</div>
+      </div>
+
+      <nav class="nav">
+        <a href="dashboard.html" class="nav__item">🏠 Dashboard</a>
+        <a href="transaction-list.html" class="nav__item active">💳 Transactions</a>
+        <a href="settings.html" class="nav__item">⚙️ Settings</a>
+        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn" id="toggleSidebar">☰</button>
+        <h1 class="page-title">My Transactions</h1>
+      </header>
+
+      <section class="content">
+
+        <!-- ALERTS -->
+        <div class="card alert-card">
+          <h2 class="card__title">Alerts & Budget Tips</h2>
+          <ul class="alerts-list">
+            <li>⚠️ You are nearing your **Dining** budget for this month.</li>
+            <li>📊 Your weekly summary is ready — you spent **$182**.</li>
+            <li>🔔 A transaction from **Uber** was higher than usual.</li>
+          </ul>
+        </div>
+
+        <!-- SUMMARY BAR -->
+        <div class="card summary-bar">
+          <div>
+            <span class="summary-label">Spent This Week</span>
+            <span class="summary-value">$182</span>
+          </div>
+
+          <div>
+            <span class="summary-label">Spent This Month</span>
+            <span class="summary-value">$742</span>
+          </div>
+
+          <div>
+            <span class="summary-label">Remaining Until Budget</span>
+            <span class="summary-value green">$358 left</span>
+          </div>
+        </div>
+
+        <!-- TRANSACTION LIST -->
+        <div class="card list-card">
+          <h2 class="card__title">Recent Transactions</h2>
+
+          <div class="transaction">
+            <div class="tx-info">
+              <div class="tx-icon">🍔</div>
+              <div>
+                <div class="tx-merchant">McDonald's</div>
+                <div class="tx-date">Nov 8, 2025</div>
+              </div>
+            </div>
+            <div class="tx-amount red">-$14.29</div>
+          </div>
+
+          <div class="transaction">
+            <div class="tx-info">
+              <div class="tx-icon">🛒</div>
+              <div>
+                <div class="tx-merchant">Walmart</div>
+                <div class="tx-date">Nov 7, 2025</div>
+              </div>
+            </div>
+            <div class="tx-amount red">-$42.10</div>
+          </div>
+
+          <div class="transaction">
+            <div class="tx-info">
+              <div class="tx-icon">🚗</div>
+              <div>
+                <div class="tx-merchant">Shell Gas</div>
+                <div class="tx-date">Nov 6, 2025</div>
+              </div>
+            </div>
+            <div class="tx-amount red">-$56.80</div>
+          </div>
+
+          <div class="transaction">
+            <div class="tx-info">
+              <div class="tx-icon">🎶</div>
+              <div>
+                <div class="tx-merchant">Spotify</div>
+                <div class="tx-date">Nov 5, 2025</div>
+              </div>
+            </div>
+            <div class="tx-amount green">-$9.99</div>
+          </div>
+
+        </div>
+
+      </section>
+
+      <footer class="footer">
+        <a href="#">About</a> · <a href="#">Support</a> · <a href="#">Privacy</a>
+      </footer>
+
+    </main>
+  </div>
+
+  <script src="transaction-list.js"></script>
+</body>
+</html>
