@@ -1,0 +1,67 @@
+{% extends "user_shell.html" %}
+{% set active_page = "preferences" %}
+
+{% block title %}Preference Summary — BudgetMind AI{% endblock %}
+
+{% block head_extras %}
+<link rel="stylesheet" href="/static/dashboard.css" />
+<style>
+  .pref-container {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .pref-card {
+    background: #1b263b;
+    color: white;
+    padding: 20px;
+    border-radius: 14px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+  }
+
+  .pref-title {
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .pref-item {
+    margin-bottom: 10px;
+    font-size: 16px;
+  }
+
+  .pref-item span {
+    font-weight: bold;
+    color: #9ad1f5;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pref-container">
+
+  <div class="pref-card">
+    <div class="pref-title">💰 Budget Preferences</div>
+    <div class="pref-item"><span>Spending Limit:</span> {{ preferences.spending_limit }}</div>
+    <div class="pref-item"><span>Categories:</span> {{ preferences.categories }}</div>
+  </div>
+
+  <div class="pref-card">
+    <div class="pref-title">🔔 Notification Settings</div>
+    <div class="pref-item"><span>Email Alerts:</span> {{ preferences.email_alerts }}</div>
+    <div class="pref-item"><span>Push Alerts:</span> {{ preferences.push_alerts }}</div>
+    <div class="pref-item"><span>Weekly Summary:</span> {{ preferences.weekly_summary }}</div>
+  </div>
+
+  <div class="pref-card">
+    <div class="pref-title">🎯 Savings Goal</div>
+    <div class="pref-item"><span>Savings Goal:</span> {{ preferences.savings_goal }}</div>
+  </div>
+
+</div>
+{% endblock %}

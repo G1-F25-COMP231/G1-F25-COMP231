@@ -3594,6 +3594,35 @@ def api_category_breakdown():
 
     return jsonify(breakdown)
 
+#----------------------------
+#Preference Summary
+#----------------------------
+
+@app.route("/preferences")
+def preference_summary():
+
+    # TODO: Replace this later with real saved preferences
+    # Example: preferences = get_user_preferences_from_db(user_id)
+
+    preferences = None  # for now, assume no data exists
+
+    # If no preferences exist yet, use placeholders
+    if not preferences:
+        preferences = {
+            "spending_limit": "Not set yet",
+            "categories": "No categories selected",
+            "email_alerts": "Disabled",
+            "push_alerts": "Disabled",
+            "weekly_summary": "Disabled",
+            "savings_goal": "No savings goal set"
+        }
+
+    return render_template(
+        "preference_summary.html",
+        active_page="preferences",
+        preferences=preferences
+    )
+
 
 # ---------------------------
 # LOGOUT
