@@ -288,26 +288,54 @@ function drawCategoryDonut(list) {
 }
 
 // =======================
-// AI Insights (static rotation)
+// AI Insights (real backend)
 // =======================
 const refreshAI = document.getElementById("refreshAI");
 const aiInsights = document.getElementById("aiInsights");
-const tips = [
-  "🚌 Try a transit pass this week — potential savings <b>$18</b>.",
-  "🧾 Your subscriptions increased by <b>$6</b> MoM.",
-  "🥦 Groceries are below average this week. Nice!",
-  "🛍️ Consider a 48-hour rule for purchases over <b>$50</b>.",
-];
 
-if (refreshAI && aiInsights) {
-  refreshAI.addEventListener("click", () => {
-    const pick = Array.from(
-      { length: 3 },
-      () => tips[Math.floor(Math.random() * tips.length)]
-    );
-    aiInsights.innerHTML = pick.map((t) => `<li>${t}</li>`).join("");
-  });
+async function fetchDashboardInsights() {
+  if (!aiInsights) return;
+
+  // Show loading state
+  aiInsights.innerHTML = `<li>🔍 Loading AI insights based on your recent spending…</li>`;
+
+  try {
+    const res = await fetch("/api/ai-insights", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}), // no extra payload needed
+    });
+
+    if (!res.ok) {
+      throw new Error("Request failed with status " + res.status);
+    }
+
+    const data = await res.json();
+    const insights = data.insights || [];
+
+    if (!insights.length) {
+      aiInsights.innerHTML =
+        `<li>No insights available yet. Try connecting a bank account or adding some transactions.</li>`;
+      return;
+    }
+
+    aiInsights.innerHTML = insights.map((t) => `<li>${t}</li>`).join("");
+  } catch (err) {
+    console.error("[Dashboard] AI insights error:", err);
+    aiInsights.innerHTML =
+      `<li>⚠️ Couldn't load AI insights right now. Please try again later.</li>`;
+  }
 }
+
+// Refresh button → new 3 insights
+if (refreshAI && aiInsights) {
+  refreshAI.addEventListener("click", fetchDashboardInsights);
+}
+
+// Auto-load insights on dashboard load
+document.addEventListener("DOMContentLoaded", fetchDashboardInsights);
 
 // =======================
 // Logout
