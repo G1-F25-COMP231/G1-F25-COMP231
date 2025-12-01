@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BudgetMind AI — Simplified Dashboard</title>
+
+  <!-- Use the CSS you pasted (copy into this file path) -->
+  <link rel="stylesheet" href="static/simplified_dashboard.css" />
+
+  <script>
+    window.userId = "{{ session.get('user_id') }}";
+  </script>
+  <script src="static/simplified_dashboard.js" defer></script>
+</head>
+
+<body>
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand__logo">💠</div>
+      <div class="brand__name">BudgetMind AI</div>
+
+      <div class="profile-section">
+        <div class="avatar" id="avatarBtn"></div>
+        <div class="profile-text" id="greetingText">Hello, User</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a class="nav__item" href="/dashboard.html">🏠 Full Dashboard</a>
+      <a class="nav__item active" href="/simplified-dashboard.html">🧮 Simplified Dashboard</a>
+      <a class="nav__item" href="/ai-insights">💡 AI Insights</a>
+      <a class="nav__item" href="/entry">🧾 Add Entry</a>
+      <a class="nav__item" href="/transaction-details.html">📄 Transactions</a>
+      <a class="nav__item" href="/transaction-list.html">📄 Transaction Alert</a>
+      <a class="nav__item" href="/settings.html">⚙️ Settings</a>
+      <a class="nav__item" href="/budget-limit">💰 Budget Limit</a>
+    </nav>
+
+    <div class="nav__footer">
+      <a class="nav__item logout" href="/logout">↩️ Logout</a>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="icon-btn" id="toggleSidebar">☰</button>
+
+        <button class="icon-btn notif-btn" id="notificationsBtn">
+          🔔
+          <span id="notificationsBadge" class="notif-badge hidden"></span>
+        </button>
+      </div>
+
+      <div class="search">
+        <input type="text" placeholder="Search income/expenses…" />
+      </div>
+    </header>
+
+    <!-- PAGE CONTENT -->
+    <section class="content">
+
+      <!-- ROW 1: High-level summary -->
+      <div class="grid grid-3">
+
+        <div class="card stat">
+          <div class="stat__label">Total Income (period)</div>
+          <div class="stat__value" id="sdTotalIncome">$0.00</div>
+          <div class="hint">Based on your recent income streams.</div>
+        </div>
+
+        <div class="card stat">
+          <div class="stat__label">Total Expenses (period)</div>
+          <div class="stat__value" id="sdTotalExpense">$0.00</div>
+          <div class="hint">All tracked expenses in the same period.</div>
+        </div>
+
+        <div class="card stat">
+          <div class="stat__label">Net Income & Savings Rule</div>
+          <div class="stat__value" id="sdNetIncome">$0.00</div>
+          <div class="hint" id="sdSavingsText">20% savings target: $0.00</div>
+          <div class="progress">
+            <div class="progress__bar alt" id="sdSavingsProgress"></div>
+          </div>
+          <div class="hint" id="sdSavingsStatusText" style="margin-top:8px;">
+            Link a bank account to see how you compare to the 20% target.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ROW 2: Detailed lists -->
+      <div class="grid grid-2">
+
+        <!-- Income List -->
+        <div class="card table">
+          <div class="card__title">Income Streams (up to 50)</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Source</th>
+                <th>Category</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody id="sdIncomeTableBody">
+              <tr>
+                <td colspan="4" style="text-align:center;color:#8091a3;">
+                  Loading income…
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Expense List -->
+        <div class="card table">
+          <div class="card__title">Expenses (up to 50)</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Merchant</th>
+                <th>Category</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody id="sdExpenseTableBody">
+              <tr>
+                <td colspan="4" style="text-align:center;color:#8091a3;">
+                  Loading expenses…
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+    </section> <!-- END CONTENT -->
+  </main>
+</div>
+
+<!-- AI Chat Modal (same as dashboard) -->
+<div id="aiChatModal" class="chat-modal hidden">
+  <div class="chat-header">
+    <h3>💬 BudgetMind AI Chat</h3>
+    <button id="closeChat" class="close-btn">✖</button>
+  </div>
+
+  <div id="chatMessages" class="chat-messages"></div>
+
+  <form id="chatForm" class="chat-form">
+    <input type="text" id="chatInput" placeholder="Ask BudgetMind AI something…" required />
+    <button type="submit" class="btn">Send</button>
+  </form>
+</div>
+
+<!-- Notifications Panel (reused) -->
+<div id="notificationsPanel" class="notif-panel hidden">
+  <div class="notif-header">
+    <span>Notifications</span>
+    <button id="closeNotifications" class="icon-btn small">&times;</button>
+  </div>
+  <div id="notificationsList" class="notif-list">
+    <p class="notif-empty">No new requests.</p>
+  </div>
+</div>
+
+<script src="static/bank_connect.js"></script>
+
+</body>
+</html>

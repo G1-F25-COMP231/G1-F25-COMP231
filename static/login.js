@@ -1,6 +1,10 @@
 // --- Helpers --------------------------------------------------------------
 const $ = (sel, root = document) => root.querySelector(sel);
 
+// Shared localStorage key for dashboard mode
+const DASH_MODE_KEY = "bm_useSimplifiedDashboard";
+const LAST_ID_KEY = "lastLoginIdentifier";
+
 const patterns = {
   identifier(emailOrUser) {
     const value = emailOrUser.trim();
@@ -20,6 +24,20 @@ function setError(el, msg) {
   el.textContent = msg || "";
 }
 
+function getUseSimplifiedDashboard() {
+  return localStorage.getItem(DASH_MODE_KEY) === "true";
+}
+
+function setUseSimplifiedDashboard(enabled) {
+  localStorage.setItem(DASH_MODE_KEY, enabled ? "true" : "false");
+  if (simplifiedToggleLogin) simplifiedToggleLogin.checked = enabled;
+  if (simplifiedLoginHint) {
+    simplifiedLoginHint.textContent = enabled
+      ? "You will be redirected to the Simplified Dashboard after login."
+      : "You will be redirected to the full Dashboard after login.";
+  }
+}
+
 // --- Form elements --------------------------------------------------------
 const form = $("#loginForm");
 const idInput = $("#identifier");
@@ -28,6 +46,10 @@ const idError = $("#idError");
 const pwError = $("#pwError");
 const submitBtn = $("#submitBtn");
 const formStatus = $("#formStatus");
+
+// NEW: Simplified dashboard toggle on login page
+const simplifiedToggleLogin = document.getElementById("simplifiedDashboardToggleLogin");
+const simplifiedLoginHint = document.getElementById("simplifiedDashboardHint");
 
 // --- Validation -----------------------------------------------------------
 function validateIdentifier() {
@@ -57,21 +79,26 @@ $("#togglePw").addEventListener("click", (e) => {
   e.currentTarget.setAttribute("aria-label", isPw ? "Hide password" : "Show password");
 });
 
-// Forgot password placeholder
+// Forgot password link
 document.addEventListener("DOMContentLoaded", () => {
   const forgotLink = document.getElementById("forgotLink");
 
   if (forgotLink) {
     forgotLink.addEventListener("click", (e) => {
       e.preventDefault();
-      window.location.href = "templates/forgot_password.html";
+      window.location.href = "/forgot_password.html";
     });
   } else {
     console.warn("[login.js] #forgotLink not found in DOM");
   }
 });
 
-// (Removed broken #registerLink handler)
+// Wire up simplified-dashboard toggle
+if (simplifiedToggleLogin) {
+  simplifiedToggleLogin.addEventListener("change", () => {
+    setUseSimplifiedDashboard(simplifiedToggleLogin.checked);
+  });
+}
 
 // --- 2FA elements ---------------------------------------------------------
 const twofaDialog = $("#twofaDialog");
@@ -108,6 +135,7 @@ form.addEventListener("submit", async (e) => {
       return;
     }
 
+    // 2FA required
     if (data.require_2fa) {
       formStatus.textContent = "Credentials accepted. Please verify your code.";
       twofaInput.value = "";
@@ -117,12 +145,12 @@ form.addEventListener("submit", async (e) => {
       return;
     }
 
-    if (data.redirect) {
-      window.location.href = data.redirect;
-      return;
-    }
+    // Successful login without 2FA → redirect based on simplified toggle
+    const useSimplified = getUseSimplifiedDashboard();
+    let target = data.redirect || "/dashboard.html";
+    if (useSimplified) target = "/simplified-dashboard.html";
 
-    formStatus.textContent = "Login successful.";
+    window.location.href = target;
   } catch (err) {
     console.error(err);
     formStatus.textContent = "Network error. Please try again.";
@@ -159,7 +187,12 @@ twofaForm.addEventListener("submit", async (e) => {
 
     twofaDialog.close();
     formStatus.textContent = "Welcome back! Redirecting to your dashboard…";
-    window.location.href = data.redirect || "/dashboard.html";
+
+    const useSimplified = getUseSimplifiedDashboard();
+    let target = data.redirect || "/dashboard.html";
+    if (useSimplified) target = "/simplified-dashboard.html";
+
+    window.location.href = target;
   } catch (err) {
     console.error(err);
     setError(faError, "Network error. Try again.");
@@ -167,26 +200,30 @@ twofaForm.addEventListener("submit", async (e) => {
   }
 });
 
-// --- Cancel 2FA ------------------------------------------------------------
-cancel2fa.addEventListener("click", () => {
-  twofaDialog.close();
-  formStatus.textContent = "Two-factor verification cancelled.";
-});
+// --- Cancel 2FA -----------------------------------------------------------
+if (cancel2fa) {
+  cancel2fa.addEventListener("click", () => {
+    twofaDialog.close();
+    formStatus.textContent = "Two-factor verification cancelled.";
+  });
+}
 
-// Initialize
+// Initialize submit state
 updateSubmitState();
 
-// ✅ ADDED ------------------------------------------------------------
-// Persist login session after successful 2FA or normal login
+// ✅ Session-check: if already logged in, go straight to the right dashboard
 window.addEventListener("DOMContentLoaded", async () => {
   try {
     const res = await fetch("/api/summary"); // simple auth-check endpoint
     if (res.ok) {
-      // user is already logged in → go straight to dashboard
       const page = window.location.pathname;
       if (page.includes("login")) {
-        console.log("[login.js] Session active. Redirecting to dashboard.");
-        window.location.href = "/dashboard.html";
+        const useSimplified = getUseSimplifiedDashboard();
+        const target = useSimplified
+          ? "/simplified-dashboard.html"
+          : "/dashboard.html";
+        console.log("[login.js] Session active. Redirecting to", target);
+        window.location.href = target;
       }
     }
   } catch (err) {
@@ -194,23 +231,27 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-// ✅ ADDED: Auto-focus login fields for better UX
+// ✅ Auto-focus + last-identifier + init simplified toggle
 document.addEventListener("DOMContentLoaded", () => {
+  // Autofill last login identifier
+  const last = localStorage.getItem(LAST_ID_KEY);
+  if (last && idInput && !idInput.value) idInput.value = last;
+
+  // Initialize simplified toggle from stored preference
+  const enabled = getUseSimplifiedDashboard();
+  setUseSimplifiedDashboard(enabled);
+
+  updateSubmitState();
+
+  // Auto-focus identifier field if empty
   if (idInput && !idInput.value) idInput.focus();
 });
 
-// ✅ ADDED: Store last successful login identifier in localStorage
+// ✅ Store last successful login identifier
 async function storeLoginIdentifier(identifier) {
-  localStorage.setItem("lastLoginIdentifier", identifier);
+  localStorage.setItem(LAST_ID_KEY, identifier);
 }
 form.addEventListener("submit", () => {
   const identifier = idInput.value.trim();
   if (patterns.identifier(identifier)) storeLoginIdentifier(identifier);
-});
-
-// ✅ ADDED: Autofill last login username/email if available
-document.addEventListener("DOMContentLoaded", () => {
-  const last = localStorage.getItem("lastLoginIdentifier");
-  if (last && idInput && !idInput.value) idInput.value = last;
-  updateSubmitState();
 });

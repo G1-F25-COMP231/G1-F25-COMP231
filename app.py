@@ -623,6 +623,11 @@ def edit_profile_page():
 def ai_insights_page():
     return render_template("ai_insights.html")
 
+@app.route("/simplified-dashboard.html")
+@login_required
+def simplified_dashboard():
+    return render_template("simplified_dashboard.html")
+
 @app.route("/compliance/transactions")
 @login_required
 def transactions_page():
@@ -1298,6 +1303,148 @@ def api_export_csv():
         }
     )
 
+def compute_simplified_flows(user_id: str, max_items: int = 50):
+    """
+    Return totals + separate lists of income and expenses for the user.
+
+    Prefers Plaid (bank_accounts_col.recent_transactions), falls back to manual entries.
+    Each list is capped at max_items, ordered from most recent to oldest.
+    """
+    income_streams = []
+    expense_streams = []
+    total_income = 0.0
+    total_expense = 0.0
+
+    # -------- PLAID FIRST --------
+    bank_doc = bank_accounts_col.find_one({"user_id": user_id})
+    if bank_doc and bank_doc.get("recent_transactions"):
+        txs = bank_doc["recent_transactions"]
+
+        # Sort newest first
+        txs_sorted = sorted(txs, key=lambda x: x.get("date", ""), reverse=True)
+
+        for tx in txs_sorted:
+            amount = float(tx.get("amount") or 0)
+            name = tx.get("name", "")
+            cat = tx.get("category", "Other")
+            is_income = _classify_direction(name, cat)
+
+            item = {
+                "date": tx.get("date"),
+                "name": name,
+                "category": cat,
+                "amount": amount,
+                "transaction_id": tx.get("transaction_id"),
+            }
+
+            if is_income:
+                total_income += amount
+                if len(income_streams) < max_items:
+                    income_streams.append(item)
+            else:
+                total_expense += amount  # keep expenses as positive for reporting
+                if len(expense_streams) < max_items:
+                    expense_streams.append(item)
+
+        return {
+            "source": "plaid",
+            "total_income": round(total_income, 2),
+            "total_expense": round(total_expense, 2),
+            "income_streams": income_streams,
+            "expense_streams": expense_streams,
+        }
+
+    # -------- FALLBACK: MANUAL ENTRIES --------
+    entries = list(
+        entries_col.find({"user_id": user_id}).sort("created_at", -1)
+    )
+
+    for e in entries:
+        amount = float(e.get("amount", 0) or 0)
+        typ = str(e.get("type", "")).lower()
+        cat = e.get("category", "Other")
+        created_at = e.get("created_at")
+
+        item = {
+            "date": created_at.isoformat() if isinstance(created_at, datetime) else str(created_at),
+            "name": cat,
+            "category": cat,
+            "amount": amount,
+            "transaction_id": None,
+        }
+
+        if typ == "income":
+            total_income += amount
+            if len(income_streams) < max_items:
+                income_streams.append(item)
+        elif typ == "expense":
+            total_expense += amount
+            if len(expense_streams) < max_items:
+                expense_streams.append(item)
+
+    return {
+        "source": "manual",
+        "total_income": round(total_income, 2),
+        "total_expense": round(total_expense, 2),
+        "income_streams": income_streams,
+        "expense_streams": expense_streams,
+    }
+
+@app.route("/api/simplified/flows")
+@login_required
+def api_simplified_flows():
+    """
+    Returns totals + lists of income and expense streams (up to 50 each).
+    This is what simplified_dashboard.js will call to render the two lists.
+    """
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"ok": False, "message": "Not logged in"}), 401
+
+    flows = compute_simplified_flows(user_id, max_items=50)
+
+    return jsonify({
+        "ok": True,
+        "source": flows["source"],
+        "total_income": flows["total_income"],
+        "total_expense": flows["total_expense"],
+        "income_streams": flows["income_streams"],
+        "expense_streams": flows["expense_streams"],
+    })
+
+@app.route("/api/simplified/summary")
+@login_required
+def api_simplified_summary():
+    """
+    Uses income/expenses to compute:
+      - net_income
+      - savings_target = 20% of net_income (never less than 0)
+    Front-end can later use this to show how far up/down the user is vs that 20% target.
+    """
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"ok": False, "message": "Not logged in"}), 401
+
+    flows = compute_simplified_flows(user_id, max_items=50)
+
+    total_income = flows["total_income"]
+    total_expense = flows["total_expense"]
+    net_income = total_income - total_expense
+
+    # savings is defined as 20% of net income; if net is negative, treat savings as 0
+    savings_target = max(net_income * 0.20, 0.0)
+
+    return jsonify({
+        "ok": True,
+        "source": flows["source"],
+        "total_income": total_income,
+        "total_expense": total_expense,
+        "net_income": round(net_income, 2),
+        "savings_target": round(savings_target, 2),
+        # helpful extra fields for your simplified_dashboard later
+        "income_streams_count": len(flows["income_streams"]),
+        "expense_streams_count": len(flows["expense_streams"]),
+    })
 
 
 from fpdf import FPDF

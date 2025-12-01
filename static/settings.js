@@ -1,6 +1,8 @@
 document.addEventListener("DOMContentLoaded", () => {
   console.log("[settings.js] DOM loaded");
 
+  const DASH_MODE_KEY = "bm_useSimplifiedDashboard";
+
   const toggleBtn = document.getElementById("toggleSidebar");
   const sidebar = document.getElementById("sidebar");
   const saveBtn = document.getElementById("saveBtn");
@@ -18,6 +20,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const advisorSelect = document.getElementById("advisorSelect");
   const addAdvisorBtn = document.getElementById("addAdvisorBtn");
   const advisorActionMessage = document.getElementById("advisorActionMessage");
+
+  // NEW: Simplified dashboard toggle elements
+  const simplifiedToggle = document.getElementById("simplifiedDashboardToggle");
+  const simplifiedStatus = document.getElementById("simplifiedDashboardStatus");
 
   const budgetInputs = [
     totalBudgetInput,
@@ -242,8 +248,32 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
+  /* ==============================
+     Simplified Dashboard toggle
+     ============================== */
+  function initSimplifiedDashboardToggle() {
+    if (!simplifiedToggle || !simplifiedStatus) return;
+
+    const stored = localStorage.getItem(DASH_MODE_KEY);
+    const enabled = stored === "true";
+
+    simplifiedToggle.checked = enabled;
+    simplifiedStatus.textContent = enabled
+      ? "Simplified Dashboard will open after you log in."
+      : "Full Dashboard will open after you log in.";
+
+    simplifiedToggle.addEventListener("change", () => {
+      const on = simplifiedToggle.checked;
+      localStorage.setItem(DASH_MODE_KEY, on ? "true" : "false");
+      simplifiedStatus.textContent = on
+        ? "Simplified Dashboard will open after you log in."
+        : "Full Dashboard will open after you log in.";
+    });
+  }
+
   // Kick everything off
   checkFinancialStatus();
+  initSimplifiedDashboardToggle();
 
   console.log("[settings.js] Script initialized successfully");
 });

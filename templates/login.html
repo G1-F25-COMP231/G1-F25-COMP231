@@ -59,6 +59,17 @@
           <div id="pwError" class="error" role="alert" aria-live="polite"></div>
         </div>
 
+        <!-- Dashboard mode toggle -->
+        <div class="field">
+          <label class="checkbox-row">
+            <input type="checkbox" id="simplifiedDashboardToggleLogin" />
+            <span>Use Simplified Dashboard after login</span>
+          </label>
+          <small id="simplifiedDashboardHint" class="muted">
+            You can change this any time in Settings → Dashboard Customization.
+          </small>
+        </div>
+
         <!-- Actions -->
         <div class="actions">
           <button id="submitBtn" class="primary" type="submit" disabled>Continue</button>
@@ -91,18 +102,17 @@
 
         <div class="field">
           <label for="twofa">Verification code</label>
-         <input
-          id="twofa"
-          name="twofa"
-          type="text"
-          inputmode="numeric"
-          pattern="[0-9]{6}"
-          maxlength="6"
-          placeholder="••••••"
-          aria-describedby="faError"
-          required
-        />
-
+          <input
+            id="twofa"
+            name="twofa"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            placeholder="••••••"
+            aria-describedby="faError"
+            required
+          />
           <div id="faError" class="error" role="alert" aria-live="polite"></div>
         </div>
 
