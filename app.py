@@ -2575,6 +2575,69 @@ def api_register():
 
     return jsonify({"ok": True, "redirect": redirect_url}), 201
 
+@app.route("/api/advisor/check_client_budget", methods=["POST"])
+@login_required
+def api_check_client_budget():
+    """
+    When a client's total expenses exceed the budget their advisor set,
+    notify both the client and their advisor through the existing notifications system.
+    """
+    data = request.get_json(silent=True) or {}
+    client_id = data.get("client_id")
+
+    if not client_id:
+        return jsonify({"ok": False, "message": "Missing client_id"}), 400
+
+    # Must be an advisor
+    if session.get("role") != "Financial Advisor":
+        return jsonify({"ok": False, "message": "Unauthorized"}), 403
+
+    # Validate link
+    link, error = _get_advisor_client_link(client_id, require_accepted=True)
+    if error:
+        return error
+
+    client_user_id = str(link["user_id"])
+    advisor_id = ObjectId(session["user_id"])
+
+    # Fetch client info
+    user_doc = users_col.find_one({"_id": link["user_id"]})
+    spending_limit = float(user_doc.get("spending_limit", DEFAULT_SPENDING_LIMIT))
+
+    # Calculate total expenses
+    total_expense = 0.0
+    for e in entries_col.find({"user_id": client_user_id}):
+        if str(e.get("type", "")).lower() == "expense":
+            try:
+                total_expense += float(e.get("amount", 0))
+            except (TypeError, ValueError):
+                continue
+
+    # If the user passes their limit
+    if total_expense > spending_limit:
+        over_amount = round(total_expense - spending_limit, 2)
+
+        # Notify client
+        notifications_col.insert_one({
+            "user_id": link["user_id"],
+            "message": f"⚠️ You have exceeded your budget by ${over_amount:,.2f}.",
+            "type": "overspending_warning",
+            "created_at": datetime.utcnow(),
+            "read": False
+        })
+
+        # Notify advisor
+        notifications_col.insert_one({
+            "user_id": advisor_id,
+            "message": f"Your client {user_doc.get('fullName', 'Unnamed')} exceeded their budget by ${over_amount:,.2f}.",
+            "type": "client_overspending_alert",
+            "created_at": datetime.utcnow(),
+            "read": False
+        })
+
+        return jsonify({"ok": True, "overspent": True, "over_amount": over_amount})
+
+    return jsonify({"ok": True, "overspent": False, "message": "Client is within budget."})
 
 
 
