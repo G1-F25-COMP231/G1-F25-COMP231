@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — BudgetMind AI</title>
+  <link rel="stylesheet" href="vulnerable-settings.css">
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand__logo">💠</div>
+        <div class="brand__name">BudgetMind AI</div>
+      </div>
+
+      <nav class="nav">
+        <a href="simple-dashboard.html" class="nav__item">🏠 Dashboard</a>
+        <a href="transaction-list.html" class="nav__item">💳 Transactions</a>
+        <a href="vulnerable-settings.html" class="nav__item active">⚙️ Settings</a>
+        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <button class="icon-btn" id="toggleSidebar">☰</button>
+        <h1 class="page-title">Settings</h1>
+      </header>
+
+      <section class="content">
+
+        <!-- BUDGET LIMITS -->
+        <div class="card">
+          <h2 class="card__title">Budget Limits</h2>
+
+          <p class="section-desc">Adjust your spending limits to help AI keep you on track.</p>
+
+          <label class="input-label">Monthly Budget ($)</label>
+          <input type="number" class="input" placeholder="e.g. 2000">
+
+          <label class="input-label">Groceries ($)</label>
+          <input type="number" class="input" placeholder="e.g. 350">
+
+          <label class="input-label">Dining ($)</label>
+          <input type="number" class="input" placeholder="e.g. 150">
+
+          <label class="input-label">Transport ($)</label>
+          <input type="number" class="input" placeholder="e.g. 100">
+
+          <button class="btn-primary">Save Budget</button>
+        </div>
+
+        <!-- ALERT PREFERENCES -->
+        <div class="card">
+          <h2 class="card__title">Alert Preferences</h2>
+          <p class="section-desc">Choose which alerts you want to receive.</p>
+
+          <div class="toggle">
+            <label>Overspending Warnings</label>
+            <input type="checkbox" checked>
+          </div>
+
+          <div class="toggle">
+            <label>Large Transaction Alerts</label>
+            <input type="checkbox" checked>
+          </div>
+
+          <div class="toggle">
+            <label>Weekly Spending Summary</label>
+            <input type="checkbox">
+          </div>
+
+          <div class="toggle">
+            <label>AI Tips & Recommendations</label>
+            <input type="checkbox">
+          </div>
+
+          <button class="btn-primary">Save Preferences</button>
+        </div>
+
+        <!-- SUPPORTIVE MESSAGE -->
+        <div class="card supportive">
+          <h2 class="card__title">Need Help Staying on Track?</h2>
+          <p class="support-text">BudgetMind AI can guide you with gentle reminders and personalized insights to help you stay within your limits.</p>
+          <button class="btn-secondary">Learn More About Budget Tips</button>
+        </div>
+
+      </section>
+
+      <footer class="footer">
+        <a href="#">About</a> · <a href="#">Support</a> · <a href="#">Privacy</a>
+      </footer>
+    </main>
+
+  </div>
+
+  <script src="vulnerable-settings.js"></script>
+</body>
+
+</html>
