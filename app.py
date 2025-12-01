@@ -1742,30 +1742,78 @@ def api_budget_edit_request():
 
     return jsonify({"ok": True, "status": "pending"})
 
+def _propagate_user_budget_to_advisors(user_id: str, new_limit: float):
+    """
+    When a regular user changes their own budget, keep all advisor views
+    in sync by updating client_settings.total_budget for every accepted
+    advisor-client link for this user.
+    """
+    try:
+        user_obj_id = ObjectId(user_id)
+    except Exception:
+        return
 
+    links = clients_col.find({
+        "user_id": user_obj_id,
+        "status": "Accepted",
+        "advisor_id": {"$ne": None},
+    })
+
+    for link in links:
+        db.client_settings.update_one(
+            {"client_id": str(link["_id"])},
+            {"$set": {"total_budget": float(new_limit)}},
+            upsert=True,
+        )
 
 @app.route("/api/advisor/save_client_settings", methods=["POST"])
 @login_required
 def api_save_client_settings():
-    data = request.get_json()
+    """
+    Advisor configures a client's budget + dashboard.
+
+    Rules:
+      - Advisor's total_budget becomes the *authoritative* budget.
+      - We immediately sync that into the client's users_col.spending_limit
+        so the regular dashboard, settings, and simplified dashboard
+        all show the advisor's budget.
+      - Existing behaviour (saving categories, dashboard toggles, notes,
+        notifications) is preserved.
+    """
+    # Only advisors should be allowed to hit this endpoint
+    if session.get("role") != "Financial Advisor":
+        return jsonify(ok=False, message="Unauthorized"), 403
+
+    data = request.get_json(silent=True) or {}
     client_id = data.get("client_id")
 
     if not client_id:
         return jsonify(ok=False, message="Missing client_id"), 400
 
+    # Validate and normalize total_budget
+    raw_total = data.get("total_budget", 0)
+    try:
+        total_budget = float(raw_total)
+    except (TypeError, ValueError):
+        return jsonify(ok=False, message="Invalid total_budget value"), 400
+
+    if total_budget < 0:
+        return jsonify(ok=False, message="total_budget must be non-negative"), 400
+
+    categories_in = data.get("categories") or {}
     payload = {
-        "total_budget": data.get("total_budget", 0),
+        "total_budget": total_budget,
         "categories": {
-            "groceries": data.get("categories", {}).get("groceries", 0),
-            "dining": data.get("categories", {}).get("dining", 0),
-            "transport": data.get("categories", {}).get("transport", 0),
-            "bills": data.get("categories", {}).get("bills", 0),
+            "groceries": categories_in.get("groceries", 0),
+            "dining": categories_in.get("dining", 0),
+            "transport": categories_in.get("transport", 0),
+            "bills": categories_in.get("bills", 0),
         },
         "dashboard": data.get("dashboard", {}),
         "notes": data.get("notes", "")
     }
 
-    # Save settings to DB
+    # Persist advisor's client-specific settings
     db.client_settings.update_one(
         {"client_id": client_id},
         {"$set": payload},
@@ -1773,15 +1821,41 @@ def api_save_client_settings():
     )
 
     # -----------------------------------
+    # SYNC: advisor budget -> client user
+    # -----------------------------------
+    client_link = None
+    try:
+        client_link = clients_col.find_one({"_id": ObjectId(client_id)})
+    except Exception:
+        client_link = None
+
+    if client_link:
+        client_user_id = client_link["user_id"]
+
+        # Update canonical budget on the user document
+        users_col.update_one(
+            {"_id": client_user_id},
+            {"$set": {"spending_limit": float(total_budget)}}
+        )
+
+        # Recalculate overspending flag for that client
+        recalc_spending_flag_for_user(str(client_user_id))
+
+    # -----------------------------------
     # ADVISOR NOTES COLLECTION INSERTION
+    # (unchanged behaviour)
     # -----------------------------------
     if data.get("notes"):
         # Fetch advisor info
         advisor = users_col.find_one({"_id": ObjectId(session["user_id"])})
-        advisor_name = advisor.get("fullName", "Unknown Advisor")
+        advisor_name = advisor.get("fullName", "Unknown Advisor") if advisor else "Unknown Advisor"
 
-        # Fetch client link
-        client_link = clients_col.find_one({"_id": ObjectId(client_id)})
+        if not client_link:
+            try:
+                client_link = clients_col.find_one({"_id": ObjectId(client_id)})
+            except Exception:
+                client_link = None
+
         if not client_link:
             return jsonify(ok=False, message="Client link not found"), 400
 
@@ -1808,7 +1882,6 @@ def api_save_client_settings():
         })
 
     return jsonify(ok=True, message="Settings saved.")
-
 
 
 @app.route("/api/advisor/update_client_budget_limit", methods=["POST"])
@@ -1933,29 +2006,40 @@ def api_update_spending_limit():
 
     try:
         new_limit = float(new_limit)
-    except:
+    except (TypeError, ValueError):
         return jsonify({"ok": False, "message": "Invalid limit value"}), 400
 
-    user_id = session.get("user_id")
+    if new_limit < 0:
+        return jsonify({"ok": False, "message": "Limit must be non-negative"}), 400
 
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"ok": False, "message": "Not logged in"}), 401
+
+    # 1) Update canonical budget on the user document
     users_col.update_one(
         {"_id": ObjectId(user_id)},
         {"$set": {"spending_limit": new_limit}}
     )
 
+    # 2) Recalculate any overspending flags based on the new limit
     recalc_spending_flag_for_user(user_id)
+
+    # 3) Propagate this new budget to any advisor views for this user
+    _propagate_user_budget_to_advisors(user_id, new_limit)
 
     print("LIMIT UPDATED TO:", new_limit)
 
     return jsonify({
         "ok": True,
-        "limit": new_limit,
+        "limit": float(new_limit),
         "message": "Spending limit updated"
     })
 
 
 
-from bson import ObjectId, errors as bson_errors  # keep this import
+
+from bson import ObjectId, errors as bson_errors  
 
 @app.route("/api/advisor/set_priority", methods=["POST"])
 @login_required

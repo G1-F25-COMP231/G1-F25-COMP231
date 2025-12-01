@@ -429,8 +429,29 @@ document.addEventListener("DOMContentLoaded", () => {
 // BANK STATUS UI
 // =======================
 
-const MONTHLY_BUDGET_TARGET = 2500;
+// NOTE: now a mutable budget target; will be overwritten from /api/user-profile
+let MONTHLY_BUDGET_TARGET = 2500;
 const SAVINGS_GOAL_TARGET = 10000;
+
+// Load the user's current spending_limit so dashboard uses real budget
+async function loadUserBudgetLimit() {
+  try {
+    const res = await fetch("/api/user-profile");
+    const data = await res.json();
+
+    if (data.ok && data.user) {
+      const user = data.user;
+      const limit = Number(user.spending_limit);
+
+      if (!Number.isNaN(limit) && limit > 0) {
+        MONTHLY_BUDGET_TARGET = limit;
+      }
+    }
+  } catch (err) {
+    console.error("[Dashboard] Failed to load spending_limit:", err);
+    // keep default 2500 if error
+  }
+}
 
 async function updateBankUI() {
   const balanceEl = document.getElementById("totalBalance");
@@ -631,10 +652,10 @@ document.addEventListener("DOMContentLoaded", () => {
 // =======================
 // Run dashboard updates
 // =======================
-// =======================
-// Run dashboard updates
-// =======================
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+  // make sure we pull the user's real spending_limit first
+  await loadUserBudgetLimit();
+
   updateBankUI();
   loadCategoryChart("all");
   loadAdvisorNotes();
