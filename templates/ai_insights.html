@@ -1,43 +1,29 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>AI Insights — BudgetMind AI</title>
+{% extends "user_shell.html" %}
+{% set active_page = "ai_insights" %}
+
+{% block title %}AI Insights — BudgetMind AI{% endblock %}
+
+{% block head_extras %}
   <link rel="stylesheet" href="/static/dashboard.css">
-</head>
-<body>
-  <div class="app">
-    <!-- Sidebar identical to dashboard -->
-    <aside class="sidebar" id="sidebar">
-      <div class="brand">
-        <div class="brand__logo" aria-hidden="true">💠</div>
-        <div class="brand__name">BudgetMind AI</div>
-      </div>
+{% endblock %}
 
-      <nav class="nav">
-        <a class="nav__item" href="/dashboard.html"><span>🏠</span> Dashboard</a>
-        <a class="nav__item" href="/budget-limit"><span>💰</span> Budget Limit</a>
-        <a class="nav__item active" href="/ai-insights"><span>💡</span> AI Insights</a>
-      </nav>
+{% block content %}
+  <header class="topbar">
+    <button class="icon-btn" id="toggleSidebar">☰</button>
+    <h1 class="page-title">AI Insights</h1>
+  </header>
 
-      <div class="nav__footer">
-        <a class="nav__item logout" href="#"><span>↩️</span> Logout</a>
-      </div>
-    </aside>
+  <section class="content">
+    <p class="muted">Get personalized finance insights based on your spending</p>
 
-    <!-- Main content -->
-    <main class="main">
-      <h1>AI Insights</h1>
-      <p class="muted">Get personalized finance insights based on your spending</p>
+    <ul id="insightsList" class="ai__list"></ul>
 
-      <ul id="insightsList" class="ai__list"></ul>
+    <div class="ai__actions">
+      <button class="btn" id="refreshInsights">🔄 Refresh Insights</button>
+    </div>
+  </section>
+{% endblock %}
 
-      <div class="ai__actions">
-        <button class="btn" id="refreshInsights">🔄 Refresh Insights</button>
-      </div>
-    </main>
-  </div>
-
+{% block scripts %}
   <script src="/static/ai_insights.js"></script>
-</body>
-</html>
+{% endblock %}

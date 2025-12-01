@@ -1,123 +1,106 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BudgetMind AI — Settings</title>
+{% extends "user_shell.html" %}
+{% set active_page = "settings" %}
+
+{% block title %}BudgetMind AI — Settings{% endblock %}
+
+{% block head_extras %}
+  <!-- Shared dashboard layout/styles -->
+  <link rel="stylesheet" href="/static/dashboard.css" />
+  <!-- Settings-specific styles (form layout, etc.) -->
   <link rel="stylesheet" href="/static/settings.css" />
-</head>
-<body>
-  <div class="app">
-    <aside class="sidebar" id="sidebar">
-      <div class="brand">
-        <div class="brand__logo">💠</div>
-        <div class="brand__name">BudgetMind AI</div>
+{% endblock %}
+
+{% block content %}
+  <header class="topbar">
+    <button class="icon-btn" id="toggleSidebar">☰</button>
+    <h1 class="page-title">Settings</h1>
+  </header>
+
+  <section class="content">
+    <!-- Monthly Budget Card (LOCKABLE) -->
+    <div class="card" id="budgetCard">
+      <h2>Monthly Budget</h2>
+      <p class="subtitle">Set your spending limits to help AI track your goals.</p>
+
+      <!-- This will be shown when locked -->
+      <p id="budgetLockedBanner" class="locked-banner hidden">
+        Your budget controls are currently locked due to financial vulnerability.
+        Please connect with a Financial Advisor for support.
+      </p>
+
+      <div class="form-group">
+        <label>Total Monthly Budget ($)</label>
+        <input type="number" id="totalBudget" placeholder="e.g. 2500" />
       </div>
-      <nav class="nav">
-        <a href="/dashboard.html" class="nav__item">🏠 Dashboard</a>
-        <a href="/settings.html" class="nav__item active">⚙️ Settings</a>
-        <a href="/logout" class="nav__item logout">↩️ Logout</a>
-      </nav>
 
-      <div class="card">
-        <h2>Account</h2>
-        <p class="subtitle">Manage your personal information and credentials.</p>
-        <a href="/edit-profile.html" class="btn-save">✏️ Edit Profile</a>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Groceries</label>
+          <input type="number" id="budgetGroceries" placeholder="e.g. 400" />
+        </div>
+        <div class="form-group">
+          <label>Dining</label>
+          <input type="number" id="budgetDining" placeholder="e.g. 250" />
+        </div>
+        <div class="form-group">
+          <label>Transport</label>
+          <input type="number" id="budgetTransport" placeholder="e.g. 180" />
+        </div>
+        <div class="form-group">
+          <label>Bills & Utilities</label>
+          <input type="number" id="budgetBills" placeholder="e.g. 300" />
+        </div>
       </div>
-    </aside>
+    </div>
 
-    <main class="main">
-      <header class="topbar">
-        <button class="icon-btn" id="toggleSidebar">☰</button>
-        <h1 class="page-title">Settings</h1>
-      </header>
+    <!-- Advisor card that appears when financially vulnerable -->
+    <div class="card hidden" id="advisorLockCard">
+      <h2>Get Help From an Advisor</h2>
+      <p class="subtitle" id="advisorLockText">
+        Our system has flagged your account as financially vulnerable.
+        While this is active, your budget settings are locked.  
+        Please choose a Financial Advisor to help you manage your finances.
+      </p>
 
-      <section class="content">
-        <!-- Monthly Budget Card (LOCKABLE) -->
-        <div class="card" id="budgetCard">
-          <h2>Monthly Budget</h2>
-          <p class="subtitle">Set your spending limits to help AI track your goals.</p>
+      <div class="form-group">
+        <label for="advisorSelect">Add an Advisor</label>
+        <select id="advisorSelect">
+          <option value="">Select a Financial Advisor...</option>
+        </select>
+      </div>
 
-          <!-- This will be shown when locked -->
-          <p id="budgetLockedBanner" class="locked-banner hidden">
-            Your budget controls are currently locked due to financial vulnerability.
-            Please connect with a Financial Advisor for support.
-          </p>
+      <button class="btn-save" id="addAdvisorBtn">➕ Add Advisor</button>
 
-          <div class="form-group">
-            <label>Total Monthly Budget ($)</label>
-            <input type="number" id="totalBudget" placeholder="e.g. 2500" />
-          </div>
+      <p class="subtitle" id="advisorActionMessage" style="margin-top: 10px;"></p>
+    </div>
 
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Groceries</label>
-              <input type="number" id="budgetGroceries" placeholder="e.g. 400" />
-            </div>
-            <div class="form-group">
-              <label>Dining</label>
-              <input type="number" id="budgetDining" placeholder="e.g. 250" />
-            </div>
-            <div class="form-group">
-              <label>Transport</label>
-              <input type="number" id="budgetTransport" placeholder="e.g. 180" />
-            </div>
-            <div class="form-group">
-              <label>Bills & Utilities</label>
-              <input type="number" id="budgetBills" placeholder="e.g. 300" />
-            </div>
-          </div>
-        </div>
+    <div class="card">
+      <h2>Dashboard Customization</h2>
+      <p class="subtitle">Select which widgets to show on your main dashboard.</p>
+      <div class="toggle-list">
+        <label><input type="checkbox" checked /> Total Balance</label>
+        <label><input type="checkbox" checked /> Monthly Spending</label>
+        <label><input type="checkbox" checked /> Savings Goal</label>
+        <label><input type="checkbox" /> Category Chart</label>
+        <label><input type="checkbox" /> AI Insights</label>
 
-        <!-- Advisor card that appears when financially vulnerable -->
-        <div class="card hidden" id="advisorLockCard">
-          <h2>Get Help From an Advisor</h2>
-          <p class="subtitle" id="advisorLockText">
-            Our system has flagged your account as financially vulnerable.
-            While this is active, your budget settings are locked.  
-            Please choose a Financial Advisor to help you manage your finances.
-          </p>
+        <!-- NEW: Simplified Dashboard toggle -->
+        <label>
+          <input type="checkbox" id="simplifiedDashboardToggle" />
+          Use Simplified Dashboard by default
+        </label>
+      </div>
+      <p class="subtitle" id="simplifiedDashboardStatus" style="margin-top: 6px;"></p>
+    </div>
 
-          <div class="form-group">
-            <label for="advisorSelect">Add an Advisor</label>
-            <select id="advisorSelect">
-              <option value="">Select a Financial Advisor...</option>
-            </select>
-          </div>
+    <button class="btn-save" id="saveBtn">💾 Save Changes</button>
+  </section>
 
-          <button class="btn-save" id="addAdvisorBtn">➕ Add Advisor</button>
+  <footer class="footer">
+    <a href="#">About</a> · <a href="#">Contact Support</a> · <a href="#">Privacy</a>
+  </footer>
+{% endblock %}
 
-          <p class="subtitle" id="advisorActionMessage" style="margin-top: 10px;"></p>
-        </div>
-
-        <div class="card">
-          <h2>Dashboard Customization</h2>
-          <p class="subtitle">Select which widgets to show on your main dashboard.</p>
-          <div class="toggle-list">
-            <label><input type="checkbox" checked /> Total Balance</label>
-            <label><input type="checkbox" checked /> Monthly Spending</label>
-            <label><input type="checkbox" checked /> Savings Goal</label>
-            <label><input type="checkbox" /> Category Chart</label>
-            <label><input type="checkbox" /> AI Insights</label>
-
-            <!-- NEW: Simplified Dashboard toggle -->
-            <label>
-              <input type="checkbox" id="simplifiedDashboardToggle" />
-              Use Simplified Dashboard by default
-            </label>
-          </div>
-          <p class="subtitle" id="simplifiedDashboardStatus" style="margin-top: 6px;"></p>
-        </div>
-
-        <button class="btn-save" id="saveBtn">💾 Save Changes</button>
-      </section>
-
-      <footer class="footer">
-        <a href="#">About</a> · <a href="#">Contact Support</a> · <a href="#">Privacy</a>
-      </footer>
-    </main>
-  </div>
-
-  <script src="static/settings.js"></script>
-</body>
-</html>
+{% block scripts %}
+  <script src="/static/settings.js"></script>
+{% endblock %}

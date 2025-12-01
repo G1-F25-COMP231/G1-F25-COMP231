@@ -1,7 +1,9 @@
+// static/settings.js
 document.addEventListener("DOMContentLoaded", () => {
   console.log("[settings.js] DOM loaded");
 
-  const DASH_MODE_KEY = "bm_useSimplifiedDashboard";
+  // IMPORTANT: match shell.js
+  const DASH_MODE_KEY = "useSimplifiedDashboard";
 
   const toggleBtn = document.getElementById("toggleSidebar");
   const sidebar = document.getElementById("sidebar");
@@ -251,23 +253,74 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ==============================
      Simplified Dashboard toggle
      ============================== */
-  function initSimplifiedDashboardToggle() {
-    if (!simplifiedToggle || !simplifiedStatus) return;
 
+  function applyLocalModeFallback() {
     const stored = localStorage.getItem(DASH_MODE_KEY);
     const enabled = stored === "true";
 
     simplifiedToggle.checked = enabled;
     simplifiedStatus.textContent = enabled
-      ? "Simplified Dashboard will open after you log in."
-      : "Full Dashboard will open after you log in.";
+      ? "Simplified Dashboard will open by default."
+      : "Full Dashboard will open by default.";
+  }
+
+  function updateDashboardMode(on) {
+    const mode = on ? "simplified" : "full";
+
+    // update localStorage used by shell.js
+    localStorage.setItem(DASH_MODE_KEY, on ? "true" : "false");
+    simplifiedStatus.textContent = on
+      ? "Simplified Dashboard will open by default."
+      : "Full Dashboard will open by default.";
+
+    fetch("/api/user/dashboard_mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.ok) {
+          console.warn("[settings.js] Failed to save dashboard mode:", data);
+        } else {
+          console.log("[settings.js] Dashboard mode saved:", data.mode);
+        }
+      })
+      .catch((err) => {
+        console.error("[settings.js] Error saving dashboard mode:", err);
+      });
+  }
+
+  function initSimplifiedDashboardToggle() {
+    if (!simplifiedToggle || !simplifiedStatus) return;
+
+    // First, try to get mode from backend
+    fetch("/api/user/dashboard_mode")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.ok) {
+          console.warn(
+            "[settings.js] dashboard_mode GET failed, falling back to localStorage"
+          );
+          applyLocalModeFallback();
+          return;
+        }
+
+        const enabled = data.mode === "simplified";
+        simplifiedToggle.checked = enabled;
+        localStorage.setItem(DASH_MODE_KEY, enabled ? "true" : "false");
+        simplifiedStatus.textContent = enabled
+          ? "Simplified Dashboard will open by default."
+          : "Full Dashboard will open by default.";
+      })
+      .catch((err) => {
+        console.error("[settings.js] Error fetching dashboard_mode:", err);
+        applyLocalModeFallback();
+      });
 
     simplifiedToggle.addEventListener("change", () => {
       const on = simplifiedToggle.checked;
-      localStorage.setItem(DASH_MODE_KEY, on ? "true" : "false");
-      simplifiedStatus.textContent = on
-        ? "Simplified Dashboard will open after you log in."
-        : "Full Dashboard will open after you log in.";
+      updateDashboardMode(on);
     });
   }
 

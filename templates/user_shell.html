@@ -1,51 +1,75 @@
-<!-- Sidebar -->
-<aside class="sidebar" id="sidebar">
-  <div class="brand">
-    <div class="brand__logo">💠</div>
-    <div class="brand__name">BudgetMind AI</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}BudgetMind AI{% endblock %}</title>
 
-    <div class="profile-section">
-      <div class="avatar" id="avatarBtn"></div>
-      <div class="profile-text" id="greetingText">Hello, User</div>
+  <!-- Global styles for layout/sidebar/etc -->
+  <link rel="stylesheet" href="/static/dashboard.css" />
+
+  {% block head_extras %}{% endblock %}
+</head>
+<body>
+<script>
+  // needed by shell.js for avatar/profile loading
+  window.userId = "{{ session.get('user_id') }}";
+</script>
+
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand__logo">💠</div>
+      <div class="brand__name">BudgetMind AI</div>
+
+      <div class="profile-section">
+        <div class="avatar" id="avatarBtn"></div>
+        <div class="profile-text" id="greetingText">Hello, User</div>
+      </div>
     </div>
-  </div>
 
-  <nav class="nav">
-    <a
-      class="nav__item {% if active_page == 'dashboard' %}active{% endif %}"
-      href="#"
-      id="dashboardNav"
-    >
-      🏠 Dashboard
-    </a>
+    <nav class="nav">
+      <a
+        class="nav__item {% if active_page == 'dashboard' %}active{% endif %}"
+        href="#"
+        id="dashboardNav"
+      >
+        🏠 Dashboard
+      </a>
 
-    <a class="nav__item {% if active_page == 'ai_insights' %}active{% endif %}"
-       href="/ai-insights">💡 AI Insights</a>
+      <a class="nav__item {% if active_page == 'ai_insights' %}active{% endif %}"
+         href="/ai-insights">💡 AI Insights</a>
 
-    <a class="nav__item {% if active_page == 'entry' %}active{% endif %}"
-       href="/entry">🧾 Add Entry</a>
+      <a class="nav__item {% if active_page == 'entry' %}active{% endif %}"
+         href="/entry">🧾 Add Entry</a>
 
-    <a class="nav__item {% if active_page == 'transactions' %}active{% endif %}"
-       href="/transaction-details.html">📄 Transactions</a>
+      <a class="nav__item {% if active_page == 'transactions' %}active{% endif %}"
+         href="/transaction-details.html">📄 Transactions</a>
 
-    <a class="nav__item {% if active_page == 'alerts' %}active{% endif %}"
-       href="/transaction-list.html">📄 Transaction Alert</a>
+      <a class="nav__item {% if active_page == 'alerts' %}active{% endif %}"
+         href="/transaction-list.html">📄 Transaction Alert</a>
 
-    <a class="nav__item {% if active_page == 'settings' %}active{% endif %}"
-       href="/settings.html">⚙️ Settings</a>
+      <a class="nav__item {% if active_page == 'settings' %}active{% endif %}"
+         href="/settings.html">⚙️ Settings</a>
 
-    <a class="nav__item {% if active_page == 'budget_limit' %}active{% endif %}"
-       href="/budget-limit">💰 Budget Limit</a>
-  </nav>
+      <a class="nav__item {% if active_page == 'budget_limit' %}active{% endif %}"
+         href="/budget-limit">💰 Budget Limit</a>
+    </nav>
 
-  <div class="nav__footer">
-    <a class="nav__item logout" href="/logout">↩️ Logout</a>
-  </div>
-</aside>
+    <div class="nav__footer">
+      <a class="nav__item logout" href="/logout">↩️ Logout</a>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
 <script src="/static/bank_connect.js"></script>
-<script src="/static/shell.js"></script>  <!-- 👈 add this -->
-
+<script src="/static/shell.js"></script>
 {% block scripts %}{% endblock %}
-
 </body>
 </html>

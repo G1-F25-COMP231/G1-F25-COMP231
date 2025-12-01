@@ -1,155 +1,57 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Add Entry — BudgetMind AI</title>
+{% extends "user_shell.html" %}
+{% set active_page = "entry" %}
+
+{% block title %}Add Entry — BudgetMind AI{% endblock %}
+
+{% block head_extras %}
   <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
-</head>
-<body>
-  <div class="app">
-    <!-- Sidebar -->
-    <aside class="sidebar" id="sidebar">
-      <div class="brand">
-        <div class="brand__logo">💠</div>
-        <div class="brand__name">BudgetMind AI</div>
-      </div>
+{% endblock %}
 
-      <nav class="nav">
-        <a class="nav__item" href="/dashboard.html"><span>🏠</span> Dashboard</a>
-        <a class="nav__item" href="/ai-insights"><span>💡</span> AI Insights</a>
-        <a class="nav__item active" href="/entry"><span>🧾</span> Add Entry</a>
-        <a class="nav__item" href="{{ url_for('budget_limit_page') }}"><span>💰</span> Budget Limit</a>
-      </nav>
+{% block content %}
+  <!-- Topbar -->
+  <header class="topbar">
+    <button class="icon-btn" id="toggleSidebar">☰</button>
+    <div class="search">
+      <input type="text" placeholder="Search transactions..." />
+    </div>
+  </header>
 
-      <div class="nav__footer">
-        <a class="nav__item logout" href="#"><span>↩️</span> Logout</a>
-      </div>
-    </aside>
+  <!-- Content -->
+  <section class="content">
+    <h1>Add New Entry</h1>
 
-    <!-- Main -->
-    <main class="main">
-      <!-- Topbar -->
-      <header class="topbar">
-        <button class="icon-btn" id="toggleSidebar">☰</button>
-        <div class="search">
-          <input type="text" placeholder="Search transactions..." />
+    <div class="card entry-card">
+      <form id="entryForm" class="entry-form">
+        <div class="form-group">
+          <label for="type">Transaction Type</label>
+          <select name="type" id="type" required>
+            <option value="Income">Income</option>
+            <option value="Expense">Expense</option>
+          </select>
         </div>
-      </header>
 
-      <!-- Content -->
-      <section class="content">
-        <h1>Add New Entry</h1>
-
-        <div class="card entry-card">
-          <form id="entryForm" class="entry-form">
-            <div class="form-group">
-              <label for="type">Transaction Type</label>
-              <select name="type" id="type" required>
-                <option value="Income">Income</option>
-                <option value="Expense">Expense</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="category">Category</label>
-              <input type="text" name="category" id="category" placeholder="e.g. Dining, Bills, Travel" required>
-            </div>
-
-            <div class="form-group">
-              <label for="amount">Amount ($)</label>
-              <input type="number" name="amount" id="amount" step="0.01" required>
-            </div>
-
-            <div class="form-actions">
-              <button class="btn" type="submit">Add Entry</button>
-            </div>
-          </form>
-
-          <!-- Success message -->
-          <div id="successAlert" class="alert" style="display:none;">✅ Entry added successfully!</div>
+        <div class="form-group">
+          <label for="category">Category</label>
+          <input type="text" name="category" id="category" placeholder="e.g. Dining, Bills, Travel" required>
         </div>
-      </section>
-    </main>
-  </div>
 
-  <!-- Style -->
-  <style>
-    .entry-card {
-      max-width: 600px;
-      margin: 2rem auto;
-      padding: 2rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1.2rem;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-      border-radius: 16px;
-    }
+        <div class="form-group">
+          <label for="amount">Amount ($)</label>
+          <input type="number" name="amount" id="amount" step="0.01" required>
+        </div>
 
-    .entry-form {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
+        <div class="form-actions">
+          <button class="btn" type="submit">Add Entry</button>
+        </div>
+      </form>
 
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.3rem;
-    }
+      <!-- Success message -->
+      <div id="successAlert" class="alert" style="display:none;">✅ Entry added successfully!</div>
+    </div>
+  </section>
+{% endblock %}
 
-    .form-group input,
-    .form-group select {
-      padding: 0.6rem;
-      border-radius: 8px;
-      border: 1px solid #d0d0d0;
-      font-size: 1rem;
-    }
-
-    .form-actions {
-      text-align: right;
-    }
-
-    .btn {
-      background: #0d6efd;
-      color: white;
-      padding: 0.7rem 1.2rem;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 500;
-      transition: background 0.3s ease;
-    }
-
-    .btn:hover {
-      background: #0b5ed7;
-    }
-
-    h1 {
-      font-size: 1.8rem;
-      text-align: center;
-      margin-bottom: 1rem;
-    }
-
-    .alert {
-      background: #d1e7dd;
-      color: #0f5132;
-      border: 1px solid #badbcc;
-      padding: 0.8rem 1rem;
-      border-radius: 8px;
-      margin-top: 1rem;
-      font-weight: 500;
-      text-align: center;
-      animation: fadeIn 0.3s ease;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-5px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  </style>
-
-  <!-- Script -->
+{% block scripts %}
   <script>
   document.getElementById("entryForm").addEventListener("submit", async function(e) {
     e.preventDefault();
@@ -183,5 +85,4 @@
     }
   });
   </script>
-</body>
-</html>
+{% endblock %}

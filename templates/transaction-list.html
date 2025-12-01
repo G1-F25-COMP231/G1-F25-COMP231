@@ -1,85 +1,64 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Transactions — BudgetMind AI</title>
-  <link rel="stylesheet" href="static/transaction-list.css">
-</head>
+{% extends "user_shell.html" %}
+{% set active_page = "alerts" %}
 
-<body>
-  <div class="app">
+{% block title %}My Transactions — BudgetMind AI{% endblock %}
 
-    <!-- SIDEBAR -->
-    <aside class="sidebar" id="sidebar">
-      <div class="brand">
-        <div class="brand__logo">💠</div>
-        <div class="brand__name">BudgetMind AI</div>
+{% block head_extras %}
+  <!-- Reuse dashboard styles for layout/cards/topbar -->
+  <link rel="stylesheet" href="/static/dashboard.css">
+  <!-- Page-specific tweaks for transaction list -->
+  <link rel="stylesheet" href="/static/transaction-list.css">
+{% endblock %}
+
+{% block content %}
+  <header class="topbar">
+    <button class="icon-btn" id="toggleSidebar">☰</button>
+    <h1 class="page-title">My Transactions</h1>
+  </header>
+
+  <section class="content">
+
+    <!-- ALERTS -->
+    <div class="card alert-card">
+      <h2 class="card__title">Alerts & Budget Tips</h2>
+      <ul class="alerts-list" id="alertsList">
+        <!-- Filled by JS -->
+      </ul>
+    </div>
+
+    <!-- SUMMARY BAR -->
+    <div class="card summary-bar" id="summaryBar">
+      <div>
+        <span class="summary-label">Spent This Week</span>
+        <span class="summary-value" id="weekSpent">$0</span>
       </div>
 
-      <nav class="nav">
-        <a class="nav__item" href="/dashboard.html">🏠 Dashboard</a>
-        <a class="nav__item" href="/ai-insights">💡 AI Insights</a>
-        <a class="nav__item" href="/entry">🧾 Add Entry</a>
-        <a class="nav__item" href="/transaction-details.html">📄 All Transactions</a>
-        <a class="nav__item active" href="/transaction-list.html">🚨 Transaction Alerts</a>
-        <a class="nav__item" href="/settings.html">⚙️ Settings</a>
-        <a class="nav__item" href="/budget-limit">💰 Budget Limit</a>
-      </nav>
-    </aside>
+      <div>
+        <span class="summary-label">Spent This Month</span>
+        <span class="summary-value" id="monthSpent">$0</span>
+      </div>
 
-    <!-- MAIN -->
-    <main class="main">
-      <header class="topbar">
-        <button class="icon-btn" id="toggleSidebar">☰</button>
-        <h1 class="page-title">My Transactions</h1>
-      </header>
+      <div>
+        <span class="summary-label">Remaining Until Budget</span>
+        <span class="summary-value green" id="budgetRemaining">$0</span>
+      </div>
+    </div>
 
-      <section class="content">
+    <!-- TRANSACTION LIST -->
+    <div class="card list-card">
+      <h2 class="card__title">Recent Transactions</h2>
+      <div id="transactionList">
+        <!-- JS will fill this -->
+      </div>
+    </div>
 
-        <!-- ALERTS -->
-        <div class="card alert-card">
-          <h2 class="card__title">Alerts & Budget Tips</h2>
-          <ul class="alerts-list" id="alertsList">
-            <!-- Filled by JS -->
-          </ul>
-        </div>
+  </section>
 
-        <!-- SUMMARY BAR -->
-        <div class="card summary-bar" id="summaryBar">
-          <div>
-            <span class="summary-label">Spent This Week</span>
-            <span class="summary-value" id="weekSpent">$0</span>
-          </div>
+  <footer class="footer">
+    <a href="#">About</a> · <a href="#">Support</a> · <a href="#">Privacy</a>
+  </footer>
+{% endblock %}
 
-          <div>
-            <span class="summary-label">Spent This Month</span>
-            <span class="summary-value" id="monthSpent">$0</span>
-          </div>
-
-          <div>
-            <span class="summary-label">Remaining Until Budget</span>
-            <span class="summary-value green" id="budgetRemaining">$0</span>
-          </div>
-        </div>
-
-        <!-- TRANSACTION LIST -->
-        <div class="card list-card">
-          <h2 class="card__title">Recent Transactions</h2>
-          <div id="transactionList">
-            <!-- JS will fill this -->
-          </div>
-        </div>
-
-      </section>
-
-      <footer class="footer">
-        <a href="#">About</a> · <a href="#">Support</a> · <a href="#">Privacy</a>
-      </footer>
-
-    </main>
-  </div>
-
-  <script src="static/transaction-list.js"></script>
-</body>
-</html>
+{% block scripts %}
+  <script src="/static/transaction-list.js"></script>
+{% endblock %}

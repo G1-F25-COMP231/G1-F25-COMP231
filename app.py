@@ -588,69 +588,82 @@ def register_page():
 @app.route("/dashboard.html")
 @login_required
 def dashboard():
-    return render_template("dashboard.html")
+    user = get_current_user()
+    # Redirect ONLY if simp_dash is true
+    if user and user.get("simp_dash"):
+        return redirect("/simplified-dashboard.html")
 
-@app.route("/transaction-list.html")
-@login_required
-def transaction_list_page():
-    return render_template("transaction-list.html")
-
-@app.route("/compliance-dashboard.html")
-@login_required
-def compliance_dashboard():
-    # Only Compliance Regulators are allowed on this page
-    if session.get("role") != "Compliance Regulator":
-        return redirect("/dashboard.html")
-    return render_template("compliance-dashboard.html")
-
-@app.route("/settings.html")
-@login_required
-def settings_page():
-    return render_template("settings.html")
-
-@app.route("/transaction-details.html")
-@login_required
-def transaction_details_page():
-    return render_template("transaction-details.html")
-
-@app.route("/edit-profile.html")
-@login_required
-def edit_profile_page():
-    return render_template("edit_profile.html")
-
-@app.route("/ai-insights")
-@login_required
-def ai_insights_page():
-    return render_template("ai_insights.html")
+    return render_template("dashboard.html", active_page="dashboard")
 
 @app.route("/simplified-dashboard.html")
 @login_required
 def simplified_dashboard():
-    return render_template("simplified_dashboard.html")
+    return render_template("simplified_dashboard.html", active_page="dashboard")
+
+
+@app.route("/transaction-list.html")
+@login_required
+def transaction_list_page():
+    return render_template("transaction-list.html", active_page="alerts")
+
+
+@app.route("/compliance-dashboard.html")
+@login_required
+def compliance_dashboard():
+    if session.get("role") != "Compliance Regulator":
+        return redirect("/dashboard.html")
+    return render_template("compliance-dashboard.html")  # separate shell
+
+
+@app.route("/settings.html")
+@login_required
+def settings_page():
+    return render_template("settings.html", active_page="settings")
+
+
+@app.route("/transaction-details.html")
+@login_required
+def transaction_details_page():
+    return render_template("transaction-details.html", active_page="transactions")
+
+
+@app.route("/edit-profile.html")
+@login_required
+def edit_profile_page():
+    return render_template("edit_profile.html", active_page="settings")
+
+
+@app.route("/ai-insights")
+@login_required
+def ai_insights_page():
+    return render_template("ai_insights.html", active_page="ai_insights")
+
 
 @app.route("/compliance/transactions")
 @login_required
 def transactions_page():
-    return render_template("transaction-table.html")
+    return render_template("transaction-table.html")  # compliance-specific
+
 
 @app.route("/compliance-settings.html")
 @login_required
 def compliance_settings_page():
-    # Only Compliance Regulators can access this settings page
     if session.get("role") != "Compliance Regulator":
         return redirect("/dashboard.html")
     return render_template("compliance-settings.html")
 
+
 @app.route("/budget-limit")
 @login_required
 def budget_limit_page():
-    return render_template("budget_limit.html")
+    return render_template("budget_limit.html", active_page="budget_limit")
 
-# Add-entry page (GET)
+
 @app.route("/entry")
 @login_required
 def entry_page():
-    return render_template("entry.html")
+    return render_template("entry.html", active_page="entry")
+
 
 @app.route("/flagged_users.html")
 @login_required
@@ -658,6 +671,7 @@ def flagged_users_page():
     if session.get("role") != "Compliance Regulator":
         return redirect("/dashboard.html")
     return render_template("flagged_users.html")
+
 
 
 @app.route("/compliance/user/<user_id>")
@@ -2576,6 +2590,7 @@ def api_login():
 
     invalid_msg = "Invalid credentials."
 
+    # Optional ?next=... for deep links
     next_url = data.get("next") or request.args.get("next") or ""
     next_url = next_url if _is_safe_url(next_url) else ""
 
@@ -2583,21 +2598,21 @@ def api_login():
     if not user or not verify_password(password, user.get("password_hash", "")):
         return jsonify({"ok": False, "message": invalid_msg}), 401
 
-    # Handle 2FA
+    # If 2FA is enabled, go into "pending" state
     if user.get("twofa_enabled") and user.get("totp_secret"):
         session.clear()
         session["pending_2fa_user_id"] = str(user["_id"])
         session["pending_next"] = next_url
         return jsonify({"ok": True, "require_2fa": True})
 
-    # Normal login
+    # Normal login flow (no 2FA)
     session.clear()
     session["user_id"] = str(user["_id"])
     session["identifier"] = user.get("email") or user.get("username")
     user_role = normalize_role(user.get("role"))
     session["role"] = user_role
 
-    # Decide post-login destination by role
+    # Decide post-login destination by role / simp_dash
     if _is_safe_url(next_url):
         redirect_to = next_url
     elif user_role == "Financial Advisor":
@@ -2605,9 +2620,15 @@ def api_login():
     elif user_role == "Compliance Regulator":
         redirect_to = "/compliance-dashboard.html"
     else:
-        redirect_to = "/dashboard.html"
+        # Regular user → use helper that checks simp_dash / dashboard_mode
+        redirect_to = get_dashboard_redirect_for(user)
 
     return jsonify({"ok": True, "require_2fa": False, "redirect": redirect_to})
+
+
+# ---------------------------
+# VERIFY 2FA
+# ---------------------------
 
 @app.route("/api/verify-2fa", methods=["POST"])
 def api_verify_2fa():
@@ -2631,6 +2652,7 @@ def api_verify_2fa():
     if not totp.verify(code, valid_window=1):
         return jsonify({"ok": False, "message": "Incorrect or expired code"}), 401
 
+    # 2FA success → establish full session
     session["user_id"] = str(user["_id"])
     session["identifier"] = user.get("email") or user.get("username")
     user_role = normalize_role(user.get("role"))
@@ -2647,10 +2669,9 @@ def api_verify_2fa():
     elif user_role == "Compliance Regulator":
         redirect_to = "/compliance-dashboard.html"
     else:
-        redirect_to = "/dashboard.html"
+        redirect_to = get_dashboard_redirect_for(user)
 
     return jsonify({"ok": True, "redirect": redirect_to})
-
 
 
 @app.route("/api/2fa-status")
@@ -3063,6 +3084,64 @@ def api_user_profile():
     return jsonify({"ok": True, "user": user})
 
 
+def get_current_user():
+    user_id = session.get("user_id")
+    if not user_id:
+        return None
+    try:
+        return users_col.find_one({"_id": ObjectId(user_id)})
+    except Exception:
+        return None
+
+@app.route("/api/user/dashboard_mode", methods=["GET"])
+@login_required
+def api_get_dashboard_mode():
+    user = get_current_user()
+    if not user:
+        return jsonify(ok=False, message="Not logged in"), 401
+
+    # Prefer the boolean flag, fall back to old text field
+    simp_flag = bool(user.get("simp_dash"))
+    if simp_flag:
+        mode = "simplified"
+    else:
+        mode = (user.get("dashboard_mode") or "full")
+
+    return jsonify(ok=True, mode=mode, simp_dash=simp_flag)
+
+
+@app.route("/api/user/dashboard_mode", methods=["POST"])
+@login_required
+def api_set_dashboard_mode():
+    user = get_current_user()
+    if not user:
+        return jsonify(ok=False, message="Not logged in"), 401
+
+    data = request.get_json(silent=True) or {}
+    mode = data.get("mode")
+
+    if mode not in ("full", "simplified"):
+        return jsonify(ok=False, message="Invalid mode"), 400
+
+    simp_flag = (mode == "simplified")
+
+    users_col.update_one(
+        {"_id": user["_id"]},
+        {"$set": {
+            "dashboard_mode": mode,   # keep for backwards compatibility
+            "simp_dash": simp_flag    # new boolean flag
+        }}
+    )
+
+    return jsonify(ok=True, mode=mode, simp_dash=simp_flag)
+
+
+# optional alias if your JS calls the old name
+@app.route("/api/user/update_dashboard_mode", methods=["POST"])
+@login_required
+def api_update_dashboard_mode_legacy():
+    return api_set_dashboard_mode()
+
 # ---------------------------
 # TRANSACTIONS API
 # ---------------------------
@@ -3230,8 +3309,22 @@ def api_compliance_summary():
             for f in flagged
         ]
     })
+def get_dashboard_redirect_for(user_doc):
+    """
+    Returns the URL to send the user to after login / 2FA / re-auth,
+    based on simp_dash / dashboard_mode.
+    """
+    if not user_doc:
+        return "/dashboard.html"
 
+    # New boolean flag wins
+    if user_doc.get("simp_dash") is True:
+        return "/simplified-dashboard.html"
 
+    mode = user_doc.get("dashboard_mode", "full")
+    if mode == "simplified":
+        return "/simplified-dashboard.html"
+    return "/dashboard.html"
 
 @app.route("/api/compliance/flagged")
 @login_required

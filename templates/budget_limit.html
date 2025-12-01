@@ -1,10 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Budget Limit Calculator — BudgetMind AI</title>
-  <link rel="stylesheet" href="../static/dashboard.css" />
+{% extends "user_shell.html" %}
+{% set active_page = "budget_limit" %}
+
+{% block title %}Budget Limit Calculator — BudgetMind AI{% endblock %}
+
+{% block head_extras %}
+  <link rel="stylesheet" href="/static/dashboard.css" />
   <style>
     .budget-container {
       max-width: 600px;
@@ -15,22 +15,22 @@
       border-radius: 12px;
       box-shadow: 0 0 15px rgba(0,0,0,0.3);
     }
-    h1 {
+    .budget-container h1 {
       text-align: center;
       margin-bottom: 20px;
     }
-    label {
+    .budget-container label {
       display: block;
       margin-top: 10px;
     }
-    input {
+    .budget-container input {
       width: 100%;
       padding: 10px;
       border-radius: 8px;
       border: none;
       margin-top: 5px;
     }
-    button {
+    .budget-container button {
       margin-top: 20px;
       width: 100%;
       background: #38bdf8;
@@ -41,43 +41,53 @@
       font-weight: bold;
       cursor: pointer;
     }
-    .result {
+    .budget-container .result {
       margin-top: 20px;
       font-size: 1.1em;
       background: #1e293b;
       padding: 15px;
       border-radius: 8px;
     }
-    a.back {
+    .budget-container a.back {
       display: inline-block;
       color: #38bdf8;
       margin-top: 15px;
       text-decoration: none;
     }
   </style>
-</head>
-<body>
-  <div class="budget-container">
-    <h1>Budget Limit Calculator</h1>
-    <p>Enter your monthly income and expenses to calculate your savings and see if you’re within your limit.</p>
+{% endblock %}
 
-    <form id="budgetForm">
-      <label>Monthly Income ($)</label>
-      <input type="number" id="income" placeholder="e.g., 5000" required />
+{% block content %}
+  <header class="topbar">
+    <button class="icon-btn" id="toggleSidebar">☰</button>
+    <h1 class="page-title">Budget Limit Calculator</h1>
+  </header>
 
-      <label>Monthly Expenses ($)</label>
-      <input type="number" id="expenses" placeholder="e.g., 3500" required />
+  <section class="content">
+    <div class="card budget-container">
+      <h1>Budget Limit Calculator</h1>
+      <p>Enter your monthly income and expenses to calculate your savings and see if you’re within your limit.</p>
 
-      <label>Target Savings (%)</label>
-      <input type="number" id="target" placeholder="e.g., 20" required />
+      <form id="budgetForm">
+        <label>Monthly Income ($)</label>
+        <input type="number" id="income" placeholder="e.g., 5000" required />
 
-      <button type="submit">Calculate Budget</button>
-    </form>
+        <label>Monthly Expenses ($)</label>
+        <input type="number" id="expenses" placeholder="e.g., 3500" required />
 
-    <div class="result" id="result"></div>
-    <a href="/dashboard.html" class="back">← Back to Dashboard</a>
-  </div>
+        <label>Target Savings (%)</label>
+        <input type="number" id="target" placeholder="e.g., 20" required />
 
+        <button type="submit">Calculate Budget</button>
+      </form>
+
+      <div class="result" id="result"></div>
+      <a href="/dashboard.html" class="back">← Back to Dashboard</a>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
   <script>
     document.getElementById("budgetForm").addEventListener("submit", function(e) {
       e.preventDefault();
@@ -97,5 +107,4 @@
       `;
     });
   </script>
-</body>
-</html>
+{% endblock %}
