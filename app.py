@@ -590,6 +590,10 @@ def register_page():
 def dashboard():
     return render_template("dashboard.html")
 
+@app.route("/transaction-list.html")
+@login_required
+def transaction_list_page():
+    return render_template("transaction-list.html")
 
 @app.route("/compliance-dashboard.html")
 @login_required
