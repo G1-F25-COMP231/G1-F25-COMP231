@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Dashboard — BudgetMind AI</title>
+  <link rel="stylesheet" href="simple-dashboard.css">
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand__logo">💠</div>
+        <div class="brand__name">BudgetMind AI</div>
+      </div>
+
+      <nav class="nav">
+        <a href="simple-dashboard.html" class="nav__item active">🏠 Dashboard</a>
+        <a href="transaction-list.html" class="nav__item">💳 Transactions</a>
+        <a href="settings.html" class="nav__item">⚙️ Settings</a>
+        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <button class="icon-btn" id="toggleSidebar">☰</button>
+        <h1 class="page-title">My Financial Overview</h1>
+      </header>
+
+      <section class="content">
+
+        <!-- ALERTS -->
+        <div class="card alert-card">
+          <h2 class="card__title">Important Alerts</h2>
+          <ul class="alerts-list">
+            <li>⚠️ You are close to exceeding your monthly **Dining** budget.</li>
+            <li>🔔 Your **weekly spending** increased by 14%.</li>
+            <li>💡 Tip: Try setting a weekly limit to maintain stability.</li>
+          </ul>
+        </div>
+
+        <!-- SUMMARY CARDS -->
+        <div class="summary-grid">
+
+          <div class="summary-card">
+            <div class="summary-label">Income (This Month)</div>
+            <div class="summary-value green">$2,480</div>
+          </div>
+
+          <div class="summary-card">
+            <div class="summary-label">Expenses (This Month)</div>
+            <div class="summary-value red">$1,740</div>
+          </div>
+
+          <div class="summary-card">
+            <div class="summary-label">Savings</div>
+            <div class="summary-value aqua">$740</div>
+          </div>
+
+        </div>
+
+        <!-- WEEKLY BAR SECTION -->
+        <div class="card weekly-card">
+          <h2 class="card__title">Weekly Spending</h2>
+          <div class="weekly-amount">$182 spent this week</div>
+          <div class="weekly-note">You're slightly above your usual weekly average.</div>
+        </div>
+
+        <!-- SIMPLE INSIGHTS -->
+        <div class="card insights-card">
+          <h2 class="card__title">Quick Insights</h2>
+
+          <ul class="insight-list">
+            <li>🛒 Most spent category this week: <strong>Groceries</strong></li>
+            <li>🍔 Dining increased compared to last week.</li>
+            <li>💰 You are on track to save <strong>$200</strong> this month.</li>
+          </ul>
+        </div>
+
+      </section>
+
+      <footer class="footer">
+        <a href="#">About</a> · <a href="#">Support</a> · <a href="#">Privacy</a>
+      </footer>
+
+    </main>
+
+  </div>
+
+  <script src="simple-dashboard.js"></script>
+</body>
+
+</html>

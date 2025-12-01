@@ -1,0 +1,187 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+:root {
+  --bg0: #000814;
+  --bg1: #0d1b2a;
+  --panel: #111928e6;
+  --border: #ffffff0f;
+  --text: #e0e6ed;
+  --muted: #a9bcd0;
+
+  --aqua: #00ffff;
+  --aqua2: #00b3b3;
+  --green: #4ade80;
+  --red: #ff6b6b;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", sans-serif;
+  background: radial-gradient(1100px 600px at 20% 20%, var(--bg1), var(--bg0));
+  color: var(--text);
+}
+
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* SIDEBAR */
+.sidebar {
+  width: 260px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 22px 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.brand__logo {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  color: #04121a;
+  font-weight: 800;
+  background: linear-gradient(90deg, var(--aqua), var(--aqua2));
+  border-radius: 10px;
+}
+
+/* NAV */
+.nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.nav__item {
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.nav__item.active,
+.nav__item:hover {
+  background: #0c1727;
+  border: 1px solid #0e2238;
+}
+
+/* MAIN */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-title {
+  color: #cde6ff;
+}
+
+/* CONTENT */
+.content {
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+/* CARD */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 20px;
+  border-radius: 16px;
+}
+
+.card__title {
+  font-size: 1.3rem;
+  margin-bottom: 12px;
+  color: var(--aqua);
+}
+
+/* ALERTS */
+.alert-card ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  line-height: 1.7;
+}
+
+/* SUMMARY CARDS */
+.summary-grid {
+  display: flex;
+  gap: 20px;
+}
+
+.summary-card {
+  flex: 1;
+  padding: 20px;
+  border-radius: 14px;
+  background: #0f1c2d;
+  border: 1px solid #11263d;
+}
+
+.summary-label {
+  color: var(--muted);
+}
+
+.summary-value {
+  margin-top: 8px;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.summary-value.green {
+  color: var(--green);
+}
+
+.summary-value.red {
+  color: var(--red);
+}
+
+.summary-value.aqua {
+  color: var(--aqua);
+}
+
+/* WEEKLY */
+.weekly-card .weekly-amount {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.weekly-note {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+/* INSIGHTS */
+.insight-list {
+  list-style: none;
+  padding: 0;
+  line-height: 1.7;
+}
+
+/* FOOTER */
+.footer {
+  padding: 18px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.footer a {
+  color: var(--aqua);
+}
