@@ -288,26 +288,60 @@ function drawCategoryDonut(list) {
 }
 
 // =======================
-// AI Insights (static rotation)
+// AI Insights (real AI via /api/ai-insights)
 // =======================
-const refreshAI = document.getElementById("refreshAI");
-const aiInsights = document.getElementById("aiInsights");
-const tips = [
+
+const dashboardFallbackTips = [
   "🚌 Try a transit pass this week — potential savings <b>$18</b>.",
   "🧾 Your subscriptions increased by <b>$6</b> MoM.",
   "🥦 Groceries are below average this week. Nice!",
   "🛍️ Consider a 48-hour rule for purchases over <b>$50</b>.",
 ];
 
-if (refreshAI && aiInsights) {
-  refreshAI.addEventListener("click", () => {
-    const pick = Array.from(
-      { length: 3 },
-      () => tips[Math.floor(Math.random() * tips.length)]
-    );
-    aiInsights.innerHTML = pick.map((t) => `<li>${t}</li>`).join("");
-  });
+async function loadDashboardInsights() {
+  const listEl = document.getElementById("aiInsights");
+  if (!listEl) return;
+
+  listEl.innerHTML = `<li>🔍 Loading insights…</li>`;
+
+  try {
+    const res = await fetch("/api/ai-insights", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({})
+    });
+
+    const data = await res.json();
+
+    let tips = [];
+    if (data && Array.isArray(data.insights) && data.insights.length > 0) {
+      tips = data.insights;
+    } else {
+      tips = dashboardFallbackTips;
+    }
+
+    listEl.innerHTML = tips.map((t) => `<li>${t}</li>`).join("");
+  } catch (err) {
+    console.error("[Dashboard] AI insights failed:", err);
+    listEl.innerHTML = dashboardFallbackTips.map((t) => `<li>${t}</li>`).join("");
+  }
 }
+
+// Hook up button + auto-load
+document.addEventListener("DOMContentLoaded", () => {
+  const refreshAI = document.getElementById("refreshAI");
+
+  if (refreshAI) {
+    refreshAI.addEventListener("click", (e) => {
+      e.preventDefault();
+      loadDashboardInsights();
+    });
+  }
+
+  // Load once on dashboard open
+  loadDashboardInsights();
+});
+
 
 // =======================
 // Logout

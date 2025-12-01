@@ -995,6 +995,226 @@ def api_ai_chat():
 
     return jsonify({"reply": reply})
 
+# =========================================
+# AI INSIGHTS HELPERS
+# =========================================
+
+def build_ai_budget_context(user_id: str, lookback_days: int = 30, max_transactions: int = 25) -> dict:
+    """
+    Build numeric summary + a text list of recent transactions for the user.
+
+    Returns a dict with:
+      - display_name
+      - total_income
+      - total_expenses
+      - net_income
+      - transactions_text
+    """
+    # Friendly name for prompt
+    user_doc = users_col.find_one({"_id": ObjectId(user_id)})
+    display_name = (
+        (user_doc or {}).get("fullName")
+        or (user_doc or {}).get("username")
+        or "the user"
+    )
+
+    bank_doc = bank_accounts_col.find_one({"user_id": user_id})
+    total_income = 0.0
+    total_expenses = 0.0
+    tx_lines = []
+
+    # Prefer Plaid-connected data
+    if bank_doc and bank_doc.get("recent_transactions"):
+        cutoff = datetime.utcnow().date() - timedelta(days=lookback_days)
+
+        # Reuse your plaid summary builder
+        try:
+            summary = _build_plaid_summary(bank_doc["recent_transactions"], cutoff)
+        except Exception:
+            summary = {"income": [], "expenses": [], "transactions": []}
+
+        total_income = float(sum(summary.get("income", [])))
+        total_expenses = float(sum(summary.get("expenses", [])))
+
+        # Take up to N most recent tx from summary
+        tx_list = summary.get("transactions", [])[:max_transactions]
+        for tx in tx_list:
+            tx_lines.append(
+                f"{tx.get('date')} | {tx.get('name')} | {tx.get('category')} | {tx.get('amount')}"
+            )
+    else:
+        # Fallback: manual entries if no bank connection
+        cutoff_dt = datetime.utcnow() - timedelta(days=lookback_days)
+        entries = entries_col.find({
+            "user_id": user_id,
+            "created_at": {"$gte": cutoff_dt},
+        }).sort("created_at", -1)
+
+        for e in entries:
+            try:
+                amt = float(e.get("amount") or 0)
+            except (TypeError, ValueError):
+                continue
+
+            typ = str(e.get("type", "")).lower()
+            cat = e.get("category", "Other")
+            created_at = e.get("created_at")
+            if isinstance(created_at, datetime):
+                dstr = created_at.date().isoformat()
+            else:
+                dstr = str(created_at)
+
+            if typ == "income":
+                total_income += amt
+            elif typ == "expense":
+                total_expenses += amt
+
+            tx_lines.append(f"{dstr} | {typ} | {cat} | {amt}")
+            if len(tx_lines) >= max_transactions:
+                break
+
+    net_income = total_income - total_expenses
+
+    transactions_text = (
+        "\n".join(f"- {line}" for line in tx_lines)
+        if tx_lines
+        else "No recent transactions available in this period."
+    )
+
+    return {
+        "display_name": display_name,
+        "total_income": round(total_income, 2),
+        "total_expenses": round(total_expenses, 2),
+        "net_income": round(net_income, 2),
+        "transactions_text": transactions_text,
+    }
+
+
+def build_insights_prompt(user_id: str, max_transactions: int = 25) -> str:
+    """
+    Build the natural-language prompt for AI insights using the user's income,
+    expenses, net income, and recent transactions.
+    """
+    ctx = build_ai_budget_context(
+        user_id=user_id,
+        lookback_days=30,
+        max_transactions=max_transactions,
+    )
+
+    display_name = ctx["display_name"]
+    total_income = ctx["total_income"]
+    total_expenses = ctx["total_expenses"]
+    net_income = ctx["net_income"]
+    tx_text = ctx["transactions_text"]
+
+    prompt = f"""
+Based on {display_name}'s recent finances:
+
+- Net income (income - expenses): {net_income:.2f}
+- Total income: {total_income:.2f}
+- Total expenses: {total_expenses:.2f}
+
+Recent transactions (most recent first, up to {max_transactions}):
+
+{tx_text}
+
+Using ONLY this information:
+
+Formulate a practical budget plan that could help {display_name} improve their finances in a general sense.
+
+Be specific, including details about categories or merchants they might reduce.
+For example: "🍔 Spend less on eating out, as 'Uber Eats' appears multiple times; skipping one order per week would free extra money for savings."
+
+Output rules:
+- Return EXACTLY 3 bullet points.
+- Each bullet must start with an emoji.
+- Each bullet should be a single clear sentence.
+- Focus only on budgeting and spending habits (do NOT give investing, tax, or legal advice).
+"""
+    return prompt.strip()
+
+
+def extract_insights(text: str, max_items: int = 3) -> list:
+    """
+    Convert the raw LLM reply into up to 3 clean bullet lines.
+    """
+    lines = [ln.strip(" -•\t") for ln in text.splitlines() if ln.strip()]
+    out = []
+    for ln in lines:
+        if ln:
+            out.append(ln)
+        if len(out) >= max_items:
+            break
+    return out
+
+# =========================================
+# AI INSIGHTS API ENDPOINT
+# =========================================
+
+@app.route("/api/ai-insights", methods=["POST"])
+@login_required
+def api_ai_insights():
+    """
+    Return 3 short AI-generated budgeting insights for the logged-in user.
+
+    Response:
+      { "ok": true/false, "insights": [ "...", "...", "..." ] }
+    """
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"ok": False, "message": "Not logged in"}), 401
+
+    # If somehow the client isn't set, give a safe fallback
+    if hf_client is None:
+        fallback = [
+            "💡 Set a simple weekly spending limit and review it every Sunday.",
+            "🧾 Review your subscriptions each month and cancel ones you rarely use.",
+            "💰 Move a fixed amount into savings right after each payday.",
+        ]
+        return jsonify({"ok": True, "source": "fallback", "insights": fallback})
+
+    prompt = build_insights_prompt(user_id, max_transactions=25)
+
+    try:
+        response = hf_client.chat_completion(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a concise budgeting coach. "
+                        "You ONLY talk about budgeting, saving and spending habits. "
+                        "You DO NOT give investing, tax, or legal advice. "
+                        "You must return exactly 3 short bullet-style tips."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=512,
+            temperature=0.6,
+        )
+
+        raw = response.choices[0].message.content or ""
+        raw = raw.strip()
+        insights = extract_insights(raw, max_items=3)
+
+        if not insights:
+            insights = [
+                "💡 Track one category this month (like dining out) and aim to cut it by 10%.",
+                "📊 Set a simple monthly budget for essentials, wants, and savings.",
+                "🏦 Pay more than the minimum on any card to reduce interest over time.",
+            ]
+
+        return jsonify({"ok": True, "insights": insights})
+
+    except Exception as e:
+        print("AI Insights error:", e)
+        fallback = [
+            "⚠️ AI is currently unavailable.",
+            "🧾 Review your top spending categories manually this week.",
+            "💰 Choose one recurring expense you can reduce or cancel.",
+        ]
+        return jsonify({"ok": False, "insights": fallback, "message": "AI service unavailable"}), 500
+
 @app.route("/api/advisor/clients")
 @login_required
 def api_advisor_clients():
