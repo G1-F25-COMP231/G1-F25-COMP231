@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Savings Goals — BudgetMind AI</title>
+  <link rel="stylesheet" href="goals.css">
+</head>
+
+<body>
+
+  <div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand__logo">💠</div>
+        <div class="brand__name">BudgetMind AI</div>
+      </div>
+
+      <nav class="nav">
+        <a href="simple-dashboard.html" class="nav__item">🏠 Dashboard</a>
+        <a href="transaction-list.html" class="nav__item">💳 Transactions</a>
+        <a href="vulnerable-settings.html" class="nav__item">⚙️ Settings</a>
+        <a href="goals.html" class="nav__item active">🎯 Goals</a>
+        <a href="login.html" class="nav__item logout">↩️ Logout</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main">
+
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <button class="icon-btn" id="toggleSidebar">☰</button>
+        <h1 class="page-title">My Savings Goals</h1>
+      </header>
+
+      <section class="content">
+
+        <!-- ADD GOAL -->
+        <div class="card">
+          <h2 class="card__title">Create a New Savings Goal</h2>
+
+          <p class="section-desc">Setting goals can help motivate consistent saving habits.</p>
+
+          <label class="input-label">Goal Name</label>
+          <input type="text" class="input" placeholder="e.g. Emergency Fund">
+
+          <label class="input-label">Target Amount ($)</label>
+          <input type="number" class="input" placeholder="e.g. 1500">
+
+          <label class="input-label">Current Saved ($)</label>
+          <input type="number" class="input" placeholder="e.g. 300">
+
+          <label class="input-label">Deadline</label>
+          <input type="date" class="input">
+
+          <button class="btn-primary">Add Goal</button>
+        </div>
+
+        <!-- EXISTING GOALS -->
+        <div class="card">
+          <h2 class="card__title">Your Active Goals</h2>
+
+          <!-- Goal Item -->
+          <div class="goal-item">
+            <div class="goal-top">
+              <div class="goal-name">Emergency Fund</div>
+              <div class="goal-amount">$300 / $1500</div>
+            </div>
+
+            <div class="progress-bar">
+              <div class="progress" style="width: 20%;"></div>
+            </div>
+
+            <div class="goal-percent">20% complete — great start!</div>
+          </div>
+
+          <!-- Goal Item -->
+          <div class="goal-item">
+            <div class="goal-top">
+              <div class="goal-name">New Laptop</div>
+              <div class="goal-amount">$600 / $1200</div>
+            </div>
+
+            <div class="progress-bar">
+              <div class="progress" style="width: 50%;"></div>
+            </div>
+
+            <div class="goal-percent">Halfway there — keep going!</div>
+          </div>
+
+        </div>
+
+        <!-- ENCOURAGEMENT -->
+        <div class="card supportive">
+          <h2 class="card__title">You're Making Progress 🎉</h2>
+          <p class="support-text">
+            Small, consistent steps lead to long-term financial strength.  
+            Try adding a little more each week to reach your goals sooner!
+          </p>
+
+          <button class="btn-secondary">Get Savings Tips</button>
+        </div>
+
+      </section>
+
+      <footer class="footer">
+        <a href="#">About</a> · <a href="#">Support</a> · <a href="#">Privacy</a>
+      </footer>
+
+    </main>
+
+  </div>
+
+  <script src="goals.js"></script>
+</body>
+</html>
