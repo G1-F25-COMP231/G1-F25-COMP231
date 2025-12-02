@@ -76,7 +76,7 @@ flagged_col = db.get_collection("flagged_transactions")
 compliance_settings_col = db.get_collection("compliance_settings")
 audit_logs_col = db.get_collection("audit_logs")
 financially_vulnerable_col = db.get_collection("financially_vulnerable_users")
-
+savings_goals_col = db.get_collection("savings_goals")
 
 
 
@@ -3179,6 +3179,160 @@ def api_summary():
         "categories": sorted_list
     })
 
+# ---------------------------
+# SAVINGS GOAL API
+# ---------------------------
+
+@app.route("/api/savings-goal", methods=["POST"])
+@login_required
+def api_set_savings_goal():
+    """
+    Create or update a savings goal for the logged-in user.
+
+    Request JSON:
+      {
+        "goal_amount": 2000,          # required
+        "amount_saved": 500           # optional, defaults to 0
+      }
+
+    Stored document fields:
+      - user_id (string)
+      - email
+      - username
+      - goal_amount
+      - amount_saved
+      - progress_percent (0–100)
+      - created_at / updated_at
+    """
+    data = request.get_json(silent=True) or {}
+
+    goal_amount = data.get("goal_amount")
+    amount_saved = data.get("amount_saved", 0)
+
+    if goal_amount is None:
+        return jsonify({"ok": False, "message": "goal_amount is required"}), 400
+
+    try:
+        goal_amount = float(goal_amount)
+        amount_saved = float(amount_saved)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "message": "goal_amount and amount_saved must be numbers"}), 400
+
+    if goal_amount <= 0:
+        return jsonify({"ok": False, "message": "goal_amount must be greater than 0"}), 400
+
+    # Compute progress
+    progress_percent = max(0.0, min((amount_saved / goal_amount) * 100.0, 100.0))
+
+    # Get current user info
+    user_id_str = session.get("user_id")
+    if not user_id_str:
+        return jsonify({"ok": False, "message": "Not logged in"}), 401
+
+    try:
+        user_doc = users_col.find_one({"_id": ObjectId(user_id_str)})
+    except Exception:
+        user_doc = None
+
+    if not user_doc:
+        return jsonify({"ok": False, "message": "User not found"}), 404
+
+    email = (user_doc.get("email") or "").strip().lower()
+    username = (user_doc.get("username") or "").strip().lower()
+
+    now = datetime.utcnow()
+
+    # Upsert one goal per user
+    savings_goals_col.update_one(
+        {"user_id": user_id_str},
+        {"$set": {
+            "user_id": user_id_str,
+            "email": email,
+            "username": username,
+            "goal_amount": goal_amount,
+            "amount_saved": amount_saved,
+            "progress_percent": round(progress_percent, 2),
+            "updated_at": now,
+        },
+         "$setOnInsert": {
+             "created_at": now
+         }},
+        upsert=True,
+    )
+
+    return jsonify({
+        "ok": True,
+        "goal_amount": goal_amount,
+        "amount_saved": amount_saved,
+        "progress_percent": round(progress_percent, 2),
+    })
+
+
+@app.route("/api/savings-goal", methods=["GET"])
+@login_required
+def api_get_savings_goal():
+    """
+    Fetch a user's savings goal and progress.
+
+    Query options:
+      - no params       -> current logged-in user
+      - ?email=...      -> lookup by email
+      - ?username=...   -> lookup by username
+
+    Response:
+      {
+        "ok": true,
+        "goal": {
+          "email": "...",
+          "username": "...",
+          "goal_amount": 2000,
+          "amount_saved": 500,
+          "progress_percent": 25.0,
+          "created_at": "...",
+          "updated_at": "..."
+        }
+      }
+    """
+    email = (request.args.get("email") or "").strip().lower()
+    username = (request.args.get("username") or "").strip().lower()
+
+    user_filter = None
+
+    if email:
+        user_filter = {"email": email}
+    elif username:
+        user_filter = {"username": username}
+    else:
+        # Default to current user
+        user_id_str = session.get("user_id")
+        if not user_id_str:
+            return jsonify({"ok": False, "message": "Not logged in"}), 401
+        try:
+            user_filter = {"_id": ObjectId(user_id_str)}
+        except Exception:
+            return jsonify({"ok": False, "message": "Invalid user id in session"}), 400
+
+    user_doc = users_col.find_one(user_filter)
+    if not user_doc:
+        return jsonify({"ok": False, "message": "User not found"}), 404
+
+    user_id_str = str(user_doc["_id"])
+
+    goal_doc = savings_goals_col.find_one({"user_id": user_id_str})
+    if not goal_doc:
+        return jsonify({"ok": True, "goal": None})
+
+    goal = {
+        "email": goal_doc.get("email"),
+        "username": goal_doc.get("username"),
+        "goal_amount": goal_doc.get("goal_amount"),
+        "amount_saved": goal_doc.get("amount_saved"),
+        "progress_percent": goal_doc.get("progress_percent"),
+        "created_at": goal_doc.get("created_at").isoformat() if goal_doc.get("created_at") else None,
+        "updated_at": goal_doc.get("updated_at").isoformat() if goal_doc.get("updated_at") else None,
+    }
+
+    return jsonify({"ok": True, "goal": goal})
 
 # ---------------------------
 # MANUAL ENTRY
