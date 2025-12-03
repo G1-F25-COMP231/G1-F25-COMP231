@@ -5,7 +5,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Savings Goals — BudgetMind AI</title>
-  <link rel="stylesheet" href="goals.css">
+  <link rel="stylesheet" href="static/goals.css">
+  <link rel="stylesheet" href="/static/dashboard.css">
+  <link rel="stylesheet" href="/static/simplified_dashboard.css">
 </head>
 
 <body>
@@ -31,10 +33,20 @@
     <!-- MAIN CONTENT -->
     <main class="main">
 
-      <!-- TOPBAR -->
+      <!-- TOPBAR (UPDATED TO MATCH SIMPLIFIED DASHBOARD) -->
       <header class="topbar">
-        <button class="icon-btn" id="toggleSidebar">☰</button>
-        <h1 class="page-title">My Savings Goals</h1>
+        <div class="topbar-left">
+          <button class="icon-btn" id="toggleSidebar">☰</button>
+
+          <button class="icon-btn notif-btn" id="notificationsBtn">
+            🔔
+            <span id="notificationsBadge" class="notif-badge hidden"></span>
+          </button>
+        </div>
+
+        <div class="search">
+          <input type="text" placeholder="Search goals or amounts..." />
+        </div>
       </header>
 
       <section class="content">
@@ -62,7 +74,13 @@
 
         <!-- EXISTING GOALS -->
         <div class="card">
-          <h2 class="card__title">Your Active Goals</h2>
+  <h2 class="card__title">Your Active Goals</h2>
+
+  <div id="goalsContainer">
+    <p style="color:#8091a3;">No goals created yet.</p>
+  </div>
+</div>
+
 
           <!-- Goal Item -->
           <div class="goal-item">
@@ -115,6 +133,9 @@
 
   </div>
 
-  <script src="goals.js"></script>
+  <script src="static/goals.js"></script>
+  <script src="/static/shell.js"></script>
+  <script src="/static/simplified_dashboard.js"></script>
+
 </body>
 </html>

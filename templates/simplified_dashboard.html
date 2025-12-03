@@ -1,13 +1,78 @@
-{% extends "user_shell.html" %}
-{% set active_page = "dashboard" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BudgetMind AI — Simplified Dashboard</title>
 
-{% block title %}BudgetMind AI — Simplified Dashboard{% endblock %}
-
-{% block head_extras %}
+  <!-- Global styles for layout/sidebar/etc -->
+  <link rel="stylesheet" href="/static/dashboard.css" />
   <link rel="stylesheet" href="/static/simplified_dashboard.css" />
-{% endblock %}
 
-{% block content %}
+</head>
+<body>
+<script>
+  // needed by shell.js for avatar/profile loading
+  window.userId = "69177e134953ec753d4670c8";
+</script>
+
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand__logo">💠</div>
+      <div class="brand__name">BudgetMind AI</div>
+
+      <div class="profile-section">
+        <div class="avatar" id="avatarBtn"></div>
+        <div class="profile-text" id="greetingText">Hello, User</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a
+        class="nav__item active"
+        href="#"
+        id="dashboardNav"
+      >
+        🏠 Dashboard
+      </a>
+
+      <a class="nav__item"
+         href="/ai-insights">💡 AI Insights</a>
+
+      <a class="nav__item"
+         href="/entry">🧾 Add Entry</a>
+
+      <a class="nav__item"
+         href="/transaction-details.html">📄 Transactions</a>
+
+      <a class="nav__item"
+         href="/transaction-list.html">📄 Transaction Alert</a>
+
+      <a class="nav__item"
+         href="/settings.html">⚙️ Settings</a>
+
+      <a class="nav__item"
+         href="/budget-limit">💰 Budget Limit</a>
+
+      <a class="nav__item"
+         href="/preferences">📋 Preference Summary</a>
+
+      <!-- ✅ Added NEW GOALS LINK -->
+      <a class="nav__item"
+         href="/goals.html">🎯 Goals</a>
+
+    </nav>
+
+    <div class="nav__footer">
+      <a class="nav__item logout" href="/logout">↩️ Logout</a>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main">
+    
   <!-- Top Bar -->
   <header class="topbar">
     <div class="topbar-left">
@@ -27,7 +92,7 @@
   <!-- PAGE CONTENT -->
   <section class="content">
 
-    <!-- ROW 1: High-level summary -->
+    <!-- ROW 1 -->
     <div class="grid grid-3">
 
       <div class="card stat">
@@ -56,7 +121,7 @@
 
     </div>
 
-    <!-- ROW 2: Detailed lists -->
+    <!-- ROW 2 -->
     <div class="grid grid-2">
 
       <!-- Income List -->
@@ -107,7 +172,7 @@
 
   </section>
 
-  <!-- AI Chat Modal (same as dashboard) -->
+  <!-- AI Chat Modal -->
   <div id="aiChatModal" class="chat-modal hidden">
     <div class="chat-header">
       <h3>💬 BudgetMind AI Chat</h3>
@@ -132,8 +197,13 @@
       <p class="notif-empty">No new requests.</p>
     </div>
   </div>
-{% endblock %}
 
-{% block scripts %}
-  <script src="/static/simplified_dashboard.js"></script>
-{% endblock %}
+  </main>
+</div>
+
+<script src="/static/bank_connect.js"></script>
+<script src="/static/shell.js"></script>
+<script src="/static/simplified_dashboard.js"></script>
+
+</body>
+</html>

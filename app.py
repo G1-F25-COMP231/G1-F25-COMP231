@@ -7,6 +7,7 @@ from datetime import datetime, date, timedelta
 from urllib.parse import urlparse, urljoin
 from flask import Response
 import csv
+import random
 from io import StringIO
 from huggingface_hub import InferenceClient
 
@@ -622,6 +623,11 @@ def simplified_dashboard():
     return render_template("simplified_dashboard.html", active_page="dashboard")
 
 
+@app.route("/goals.html")
+def goals_page():
+    return render_template("goals.html")
+
+
 @app.route("/transaction-list.html")
 @login_required
 def transaction_list_page():
@@ -693,6 +699,46 @@ def flagged_users_page():
         return redirect("/dashboard.html")
     return render_template("flagged_users.html")
 
+
+
+@app.route("/api/goals", methods=["POST"])
+def create_goal():
+    data = request.json
+
+    goal = {
+        "user_id": session.get("user_id"),
+        "name": data.get("name"),
+        "target_amount": float(data.get("target_amount", 0)),
+        "current_amount": float(data.get("current_amount", 0)),
+        "deadline": data.get("deadline")
+    }
+
+    result = db.goals.insert_one(goal)
+    return jsonify({"message": "Goal created", "id": str(result.inserted_id)})
+@app.route("/api/goals", methods=["GET"])
+def get_goals():
+    user_id = session.get("user_id")
+
+    goals = list(db.goals.find({"user_id": user_id}, {"_id": 0}))
+    return jsonify(goals)
+
+
+@app.route("/api/goals/<goal_id>", methods=["PUT"])
+def update_goal(goal_id):
+    data = request.json
+
+    db.goals.update_one(
+        {"_id": ObjectId(goal_id)},
+        {"$set": data}
+    )
+
+    return jsonify({"message": "Goal updated"})
+
+
+@app.route("/api/goals/<goal_id>", methods=["DELETE"])
+def delete_goal(goal_id):
+    db.goals.delete_one({"_id": ObjectId(goal_id)})
+    return jsonify({"message": "Goal deleted"})
 
 
 @app.route("/compliance/user/<user_id>")
