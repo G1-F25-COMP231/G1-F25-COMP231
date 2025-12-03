@@ -551,6 +551,27 @@ def api_user_financial_status():
         "net_amount": doc.get("net_amount"),
         "computed_at": doc.get("computed_at").isoformat() if doc.get("computed_at") else None,
     })
+@app.route("/api/user/spending_goals", methods=["GET"])
+@login_required
+def api_user_spending_goals():
+    """
+    Return 2–3 spending goals for the *Average User* dashboard only.
+    Advisors / regulators should not see this.
+    """
+    role = normalize_role(session.get("role"))
+    if role != "Average User":
+        return jsonify({"ok": False, "message": "Only regular users see spending goals"}), 403
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"ok": False, "message": "Not logged in"}), 401
+
+    goals = build_spending_goals(user_id, max_goals=3)
+
+    return jsonify({
+        "ok": True,
+        "goals": goals,
+    })
 
 
 @app.route("/api/compliance/get_settings")
@@ -1367,6 +1388,79 @@ def compute_simplified_flows(user_id: str, max_items: int = 50):
             "income_streams": income_streams,
             "expense_streams": expense_streams,
         }
+
+
+def build_spending_goals(user_id: str, max_goals: int = 3) -> list[dict]:
+    """
+    Build simple, data-driven spending goals for an Average User.
+
+    Logic:
+      - Use compute_simplified_flows() to get recent expenses.
+      - Aggregate expense amount by category.
+      - Pick the top categories and suggest a 10% reduction target.
+      - If there is no data, fall back to some generic random goals.
+    """
+    flows = compute_simplified_flows(user_id, max_items=200)
+    expense_streams = flows.get("expense_streams", []) or []
+
+    # If we have no expenses at all, just return generic random goals
+    if not expense_streams:
+        generic_goals = [
+            "Limit eating out to 1–2 times per week.",
+            "Move an extra $25 into savings each payday.",
+            "Cap monthly rideshare spending (Uber/Lyft) at $50.",
+            "Set a hard cap for subscriptions and cancel one you don’t use.",
+            "Have 1 ‘no-spend’ day each week.",
+        ]
+        picked = random.sample(generic_goals, k=min(max_goals, len(generic_goals)))
+        return [
+            {
+                "category": "General",
+                "text": text,
+                "current_spend": None,
+                "target_spend": None,
+            }
+            for text in picked
+        ]
+
+    # Aggregate total expense by category
+    category_totals: dict[str, float] = {}
+    for tx in expense_streams:
+        cat = (tx.get("category") or "Other").strip()
+        if not cat:
+            cat = "Other"
+        try:
+            amt = float(tx.get("amount") or 0)
+        except (TypeError, ValueError):
+            amt = 0.0
+
+        if amt <= 0:
+            continue
+
+        category_totals[cat] = category_totals.get(cat, 0.0) + amt
+
+    if not category_totals:
+        # fallback to generic if everything was zero / invalid
+        return build_spending_goals(user_id, max_goals=max_goals)
+
+    # Sort categories by how much the user spends there
+    sorted_cats = sorted(category_totals.items(), key=lambda x: x[1], reverse=True)
+
+    goals: list[dict] = []
+    for cat, total in sorted_cats[:max_goals]:
+        # Simple rule: aim to cut this category by 10%
+        target = round(total * 0.90, 2)
+        goals.append({
+            "category": cat,
+            "current_spend": round(total, 2),
+            "target_spend": target,
+            "text": (
+                f"Try to reduce your {cat.lower()} spending from about "
+                f"${total:.2f} to around ${target:.2f} next month."
+            ),
+        })
+
+    return goals
 
     # -------- FALLBACK: MANUAL ENTRIES --------
     entries = list(
