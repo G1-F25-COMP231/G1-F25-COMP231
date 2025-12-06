@@ -10,6 +10,8 @@ import csv
 import random
 from io import StringIO
 from huggingface_hub import InferenceClient
+from flask import send_file
+from bson import ObjectId, errors as bson_errors  
 
 from flask import (
     Flask,
@@ -170,10 +172,9 @@ def login_required(view_func):
 #audit logs
 def write_audit_log(action, details=None, status=None):
     """
-    Generic audit logger. Call this from routes, or use the after_request
+    audit logger. Call this from routes, or use the after_request
     hook below to automatically log all /api/* calls.
 
-    action: short string describing what happened (e.g. "HTTP_API_CALL", "LOGIN_FAILED")
     details: optional dict with extra info
     status: HTTP status code (int)
     """
@@ -191,7 +192,6 @@ def write_audit_log(action, details=None, status=None):
         }
         audit_logs_col.insert_one(doc)
     except Exception as e:
-        # Never break the main app just because logging failed
         print("AUDIT LOG ERROR:", e)
 
 @app.after_request
@@ -202,11 +202,9 @@ def audit_after_request(response):
     """
     try:
         path = request.path or ""
-        # Only log API calls, skip static/assets
         if path.startswith("/api/"):
             payload = None
             if request.method in ("POST", "PUT", "PATCH"):
-                # Don't crash if body isn't JSON
                 payload = request.get_json(silent=True)
 
             write_audit_log(
@@ -338,7 +336,7 @@ def api_compliance_save_settings():
     data = request.get_json() or {}
 
     compliance_settings_col.update_one(
-        {"_id": "global"},   # single global compliance policy
+        {"_id": "global"},   # global compliance policy
         {"$set": {
             "enable_data_masking": data.get("enable_data_masking", False),
             "enable_ip_logging": data.get("enable_ip_logging", False),
@@ -386,8 +384,7 @@ def api_financially_vulnerable_scan():
 
     cutoff_date = datetime.utcnow().date() - timedelta(days=days)
 
-    # Clear previous snapshot so this collection always reflects
-    # the latest vulnerability assessment.
+    # Clear previous snapshot so this collection always reflects the latest vulnerability assessment.
     financially_vulnerable_col.delete_many({})
 
     vulnerable_results = []
@@ -414,10 +411,10 @@ def api_financially_vulnerable_scan():
 
         scanned_accounts += 1
 
-        # Reuse your existing Plaid summary builder to get income/expenses
+        # Reuse existing Plaid summary builder to get income/expenses
         summary = _build_plaid_summary(txs, cutoff_date)
         total_income = float(sum(summary.get("income", [])))
-        total_expenses = float(sum(summary.get("expenses", [])))  # already positive
+        total_expenses = float(sum(summary.get("expenses", []))) 
 
         # If we truly have no income and no expenses in this window, skip
         if total_income <= 0 and total_expenses <= 0:
@@ -427,7 +424,7 @@ def api_financially_vulnerable_scan():
         net = total_income - total_expenses
 
         # Percent of income left. If no income but expenses exist,
-        # treat as 0% left (worst case).
+        # treat as 0% left (worst case)
         if total_income <= 0:
             percent_left = 0.0
         else:
@@ -639,7 +636,7 @@ def transaction_list_page():
 def compliance_dashboard():
     if session.get("role") != "Compliance Regulator":
         return redirect("/dashboard.html")
-    return render_template("compliance-dashboard.html")  # separate shell
+    return render_template("compliance-dashboard.html")
 
 
 @app.route("/settings.html")
@@ -669,7 +666,7 @@ def ai_insights_page():
 @app.route("/compliance/transactions")
 @login_required
 def transactions_page():
-    return render_template("transaction-table.html")  # compliance-specific
+    return render_template("transaction-table.html") 
 
 
 @app.route("/compliance-settings.html")
@@ -761,10 +758,6 @@ def api_user_advisors():
     regular user's settings page.
     """
     # Only regular users really need this, but it's harmless for others.
-    # You can restrict if you want:
-    # if session.get("role") != "Average User":
-    #     return jsonify({"ok": False, "message": "Unauthorized"}), 403
-
     advisors = list(users_col.find({
         "role": "Financial Advisor"   # role stored via normalize_role
     }))
@@ -844,7 +837,6 @@ def api_user_select_advisor():
         "budget_edit_status": "none",
     })
 
-    # Optional: notify the advisor that a new client has been added
     user_doc = users_col.find_one({"_id": user_obj_id})
     user_name = user_doc.get("fullName", "A user") if user_doc else "A user"
 
@@ -1011,7 +1003,7 @@ def build_budget_prompt(user_id: str, user_message: str, max_transactions: int =
         else "No transactions available in this period."
     )
 
-    # Your requested style of prompt:
+    #prompt for ai
     prompt = f"""Be a friendly ai chat bot assistant and if requested to improve budget or finances or questions about either Based on {display_name}'s net income: {net_income:.2f},
 total expenses: {total_expenses:.2f}, total income: {total_income:.2f},
 and the following recent transactions (up to {max_transactions}):
@@ -1340,9 +1332,6 @@ def api_advisor_clients():
 
     return jsonify(output)
 
-
-from fpdf import FPDF  
-
 @app.route("/api/compliance/export_csv")
 @login_required
 def api_export_csv():
@@ -1423,7 +1412,7 @@ def compute_simplified_flows(user_id: str, max_items: int = 50):
                 if len(income_streams) < max_items:
                     income_streams.append(item)
             else:
-                total_expense += amount  # keep expenses as positive for reporting
+                total_expense += amount  
                 if len(expense_streams) < max_items:
                     expense_streams.append(item)
 
@@ -1486,7 +1475,7 @@ def build_spending_goals(user_id: str, max_goals: int = 3) -> list[dict]:
         category_totals[cat] = category_totals.get(cat, 0.0) + amt
 
     if not category_totals:
-        # fallback to generic if everything was zero / invalid
+        # fallback to generic if zero / invalid
         return build_spending_goals(user_id, max_goals=max_goals)
 
     # Sort categories by how much the user spends there
@@ -1507,42 +1496,6 @@ def build_spending_goals(user_id: str, max_goals: int = 3) -> list[dict]:
         })
 
     return goals
-
-    # -------- FALLBACK: MANUAL ENTRIES --------
-    entries = list(
-        entries_col.find({"user_id": user_id}).sort("created_at", -1)
-    )
-
-    for e in entries:
-        amount = float(e.get("amount", 0) or 0)
-        typ = str(e.get("type", "")).lower()
-        cat = e.get("category", "Other")
-        created_at = e.get("created_at")
-
-        item = {
-            "date": created_at.isoformat() if isinstance(created_at, datetime) else str(created_at),
-            "name": cat,
-            "category": cat,
-            "amount": amount,
-            "transaction_id": None,
-        }
-
-        if typ == "income":
-            total_income += amount
-            if len(income_streams) < max_items:
-                income_streams.append(item)
-        elif typ == "expense":
-            total_expense += amount
-            if len(expense_streams) < max_items:
-                expense_streams.append(item)
-
-    return {
-        "source": "manual",
-        "total_income": round(total_income, 2),
-        "total_expense": round(total_expense, 2),
-        "income_streams": income_streams,
-        "expense_streams": expense_streams,
-    }
 
 @app.route("/api/simplified/flows")
 @login_required
@@ -1599,12 +1552,6 @@ def api_simplified_summary():
         "income_streams_count": len(flows["income_streams"]),
         "expense_streams_count": len(flows["expense_streams"]),
     })
-
-
-from fpdf import FPDF
-import os
-from flask import send_file
-from io import BytesIO
 
 @app.route("/api/compliance/export_pdf")
 @login_required
@@ -1665,7 +1612,7 @@ def api_export_pdf():
             cat = tx.get("category", "")
             amt = tx.get("amount", 0)
 
-            # ALL ASCII OR UNICODE SAFE — reportlab never crashes
+            # ALL ASCII OR UNICODE SAFE reportlab never crashes
             line = f"{date} — {name} — {cat} — ${amt:,.2f}"
 
             flow.append(Paragraph(line, styles["Normal"]))
@@ -1681,12 +1628,6 @@ def api_export_pdf():
         as_attachment=True,
         download_name="transaction_report.pdf"
     )
-
-
-
-
-
-
 
 @app.route("/advisor_priority")
 @login_required
@@ -1800,7 +1741,7 @@ def api_alert_summary(client_link_id):
     client_user_obj_id = link["user_id"]
     client_user_id = str(client_user_obj_id)
 
-    # 🔹 get the *current* budget limit from the user record
+    # get the *current* budget limit from the user record
     user_doc = users_col.find_one({"_id": client_user_obj_id}) or {}
     try:
         current_limit = float(user_doc.get("spending_limit", DEFAULT_SPENDING_LIMIT))
@@ -1817,13 +1758,10 @@ def api_alert_summary(client_link_id):
             "timestamp": a["timestamp"].isoformat(),
             "type": a.get("type", "overspending"),
             "spent": a.get("amount_spent", 0),
-            # 🔹 always show the latest limit instead of the historical one
             "limit": current_limit,
         })
 
     return jsonify({"ok": True, "alerts": formatted})
-
-
 
 @app.route("/api/advisor/budget_edit_status/<client_link_id>")
 @login_required
@@ -2176,11 +2114,6 @@ def api_update_spending_limit():
         "message": "Spending limit updated"
     })
 
-
-
-
-from bson import ObjectId, errors as bson_errors  
-
 @app.route("/api/advisor/set_priority", methods=["POST"])
 @login_required
 def advisor_set_priority():
@@ -2220,7 +2153,6 @@ def advisor_set_priority():
         print("DB ERROR:", e)
         return jsonify({"ok": False, "message": "DB error"}), 500
     
-    #add client route 
     
 @app.route("/api/advisor/add_client", methods=["POST"])
 @login_required
@@ -2256,7 +2188,7 @@ def api_advisor_add_client():
     now = datetime.utcnow()
 
     # This row *is* the permission request:
-    # status = "Pending"  → waiting for client to accept/decline
+    # status = "Pending"  -> waiting for client to accept/decline
     client_doc = {
         "user_id": user["_id"],
         "advisor_id": advisor_id,
@@ -2727,7 +2659,6 @@ def api_compliance_retention_bank_data():
 
 #retention policies end
 
-
 # ---------------------------
 # REGISTER
 # ---------------------------
@@ -2877,7 +2808,6 @@ def api_login():
 
     invalid_msg = "Invalid credentials."
 
-    # Optional ?next=... for deep links
     next_url = data.get("next") or request.args.get("next") or ""
     next_url = next_url if _is_safe_url(next_url) else ""
 
@@ -3542,7 +3472,6 @@ def api_get_dashboard_mode():
     if not user:
         return jsonify(ok=False, message="Not logged in"), 401
 
-    # Prefer the boolean flag, fall back to old text field
     simp_flag = bool(user.get("simp_dash"))
     if simp_flag:
         mode = "simplified"
@@ -3570,15 +3499,14 @@ def api_set_dashboard_mode():
     users_col.update_one(
         {"_id": user["_id"]},
         {"$set": {
-            "dashboard_mode": mode,   # keep for backwards compatibility
-            "simp_dash": simp_flag    # new boolean flag
+            "dashboard_mode": mode,   
+            "simp_dash": simp_flag    
         }}
     )
 
     return jsonify(ok=True, mode=mode, simp_dash=simp_flag)
 
 
-# optional alias if your JS calls the old name
 @app.route("/api/user/update_dashboard_mode", methods=["POST"])
 @login_required
 def api_update_dashboard_mode_legacy():
@@ -3980,12 +3908,8 @@ def api_category_breakdown():
 @app.route("/preferences")
 def preference_summary():
 
-    # TODO: Replace this later with real saved preferences
-    # Example: preferences = get_user_preferences_from_db(user_id)
+    preferences = None  
 
-    preferences = None  # for now, assume no data exists
-
-    # If no preferences exist yet, use placeholders
     if not preferences:
         preferences = {
             "spending_limit": "Not set yet",
