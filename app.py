@@ -1341,7 +1341,7 @@ def api_advisor_clients():
     return jsonify(output)
 
 
-from fpdf import FPDF  # make sure to pip install fpdf
+from fpdf import FPDF  
 
 @app.route("/api/compliance/export_csv")
 @login_required
