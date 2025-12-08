@@ -222,25 +222,45 @@ def audit_after_request(response):
 
 
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("ascii")
+
+def verify_password(password: str, hashed: str) -> bool:
+    if not password or not hashed:
+        return False
+
+    try:
+        return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("ascii"))
+    except Exception:
+        return False
+
 
 
 def verify_password(password: str, hashed: str) -> bool:
     if not password or not hashed:
         return False
+
     try:
-        return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
-    except ValueError:
+        return bcrypt.checkpw(
+            password.encode("utf-8"),
+            hashed.encode("ascii")   # ← FIXED
+        )
+    except Exception:
         return False
+
 
 
 def find_user_by_identifier(identifier: str):
     ident = (identifier or "").strip().lower()
     if not ident:
         return None
+
     return users_col.find_one({
-        "$or": [{"email": ident}, {"username": ident}]
+        "$or": [
+            {"email": ident},
+            {"username": ident}
+        ]
     })
+
 
 
 def _compute_total_balance(balances_payload: dict) -> float:
@@ -2803,7 +2823,9 @@ def api_check_client_budget():
 @app.route("/api/login", methods=["POST"])
 def api_login():
     data = request.get_json(silent=True) or {}
-    identifier = (data.get("identifier") or "").strip()
+
+    # FIX: normalize identifier for reliable DB lookup
+    identifier = (data.get("identifier") or "").strip().lower()
     password = (data.get("password") or "")
 
     invalid_msg = "Invalid credentials."
@@ -2811,25 +2833,30 @@ def api_login():
     next_url = data.get("next") or request.args.get("next") or ""
     next_url = next_url if _is_safe_url(next_url) else ""
 
+    # FIX: use your helper, then fallback to direct email match
     user = find_user_by_identifier(identifier)
+    if not user:
+        user = users_col.find_one({"email": identifier})
+
+    # Password validation
     if not user or not verify_password(password, user.get("password_hash", "")):
         return jsonify({"ok": False, "message": invalid_msg}), 401
 
-    # If 2FA is enabled, go into "pending" state
+    # 2FA handling
     if user.get("twofa_enabled") and user.get("totp_secret"):
         session.clear()
         session["pending_2fa_user_id"] = str(user["_id"])
         session["pending_next"] = next_url
         return jsonify({"ok": True, "require_2fa": True})
 
-    # Normal login flow (no 2FA)
+    # Normal login
     session.clear()
     session["user_id"] = str(user["_id"])
     session["identifier"] = user.get("email") or user.get("username")
     user_role = normalize_role(user.get("role"))
     session["role"] = user_role
 
-    # Decide post-login destination by role / simp_dash
+    # Redirect logic
     if _is_safe_url(next_url):
         redirect_to = next_url
     elif user_role == "Financial Advisor":
@@ -2837,10 +2864,10 @@ def api_login():
     elif user_role == "Compliance Regulator":
         redirect_to = "/compliance-dashboard.html"
     else:
-        # Regular user → use helper that checks simp_dash / dashboard_mode
         redirect_to = get_dashboard_redirect_for(user)
 
     return jsonify({"ok": True, "require_2fa": False, "redirect": redirect_to})
+
 
 
 # ---------------------------
