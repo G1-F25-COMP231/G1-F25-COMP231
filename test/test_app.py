@@ -24,7 +24,7 @@ def client():
 
 
 # --------------------------------------------------------
-# TEST 1 — LOGIN
+# TEST 1 — AVISOR NOTIFICATION
 # --------------------------------------------------------
 def test_advisor_notification(client):
     from app import users_col, notifications_col
