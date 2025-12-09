@@ -15,19 +15,27 @@ def api_ai_chat():
         return jsonify({"reply": "Please type something to chat!"})
 
     try:
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are BudgetMind AI, a friendly personal finance assistant."},
-                {"role": "user", "content": user_msg}
-            ],
-            temperature=0.7
+            input=[
+                {
+                    "role": "system",
+                    "content": "You are BudgetMind AI, a friendly personal finance assistant."
+                },
+                {
+                    "role": "user",
+                    "content": user_msg
+                }
+            ]
         )
 
-        ai_reply = response.choices[0].message.content.strip()
+        ai_reply = response.output_text   # <-- this is the correct field
 
     except Exception as e:
         print("AI Chat error:", e)
-        ai_reply = "⚠️ I couldn't reach the AI service right now."
+        return jsonify({
+            "reply": "⚠️ I couldn't reach the AI service right now.",
+            "error": str(e)
+        }), 500
 
     return jsonify({"reply": ai_reply})
